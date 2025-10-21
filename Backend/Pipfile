@@ -4,10 +4,14 @@ verify_ssl = true
 name = "pypi"
 
 [packages]
-django = "*"
 python-decouple = "*"
+fastapi = "*"
+uvicorn = "*"
 
 [dev-packages]
+black = "*"
+isort = "*"
+mypy = "*"
 
 [requires]
 python_version = "3.12"
