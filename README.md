@@ -5,3 +5,9 @@
 ```
 $ docker compose up
 ```
+
+## Run frontend tests with playwright
+
+```
+$ docker compose run frontend_tests
+```
