@@ -1,0 +1,38 @@
+services:
+    backend_builder:
+        build:
+            context: .
+            dockerfile: Backend/Dockerfile
+        image: backend:latest
+
+    frontend_builder:
+        build:
+            context: .
+            dockerfile: Frontend/Dockerfile
+        image: frontend:latest
+
+    backend:
+        image: backend:latest
+        container_name: backend
+        volumes:
+            - ./Backend/src:/app/src
+            - ./Backend/start.py:/app/start.py
+        depends_on:
+            - backend_builder
+        working_dir: /app
+        ports:
+            - "8000:8000"
+        command: ["/bin/bash", "-c", "pipenv run python start.py"]
+
+    frontend:
+        image: frontend:latest
+        container_name: frontend
+        volumes:
+            - ./Frontend/forms/src:/app/src
+            - ./Frontend/forms/public:/app/public
+        depends_on:
+            - frontend_builder
+        working_dir: /app
+        ports:
+            - "3000:3000"
+        command: ["/bin/bash", "-c", "npm run start"]
