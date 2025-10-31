@@ -6,6 +6,13 @@
 $ docker compose up
 ```
 
+## Prepare ubuntu for playwright tests
+
+```
+$ sudo apt install x11-xserver-utils
+$ xhost +local:docker
+```
+
 ## Run frontend tests with playwright
 
 ```

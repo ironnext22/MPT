@@ -46,4 +46,8 @@ services:
         depends_on:
             - frontend
         working_dir: /tests
+        environment:
+            - DISPLAY=${DISPLAY}
+        volumes:
+            - /tmp/.X11-unix:/tmp/.X11-unix
         command: ["pytest", "-v", "start.py"]
