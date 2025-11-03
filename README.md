@@ -20,8 +20,8 @@ graph TB
     end
 
     subgraph postgres["Database"]
-      PG[(MySQL\n)]
-      RD[(Redis\n)]
+      PG[(MySQL)]
+      RD[(Redis)]
     end
   end
 
