@@ -8,7 +8,6 @@
 ---
 ```mermaid
 graph TB
-  %% Każdy subgraph = 1 kontener
   subgraph app
     subgraph react["Frontend"]
       R[React SPA]
@@ -21,12 +20,11 @@ graph TB
 
     subgraph postgres["Database"]
       PG[(MySQL)]
-      RD[(Redis)]
     end
   end
 
   R --> B
   B --> PG
-  B --> RD
   W --> PG
 ```
+---
