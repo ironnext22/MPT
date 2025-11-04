@@ -3,7 +3,7 @@
 ## 🌐 Architektura aplikacji
 **Frontend:** React (JS)\
 **Backend:** FastAPI (Python)\
-**Baza danych:** MySQL + Redis
+**Baza danych:** PostgreSQL + Redis
 
 ---
 ```mermaid
@@ -20,7 +20,7 @@ graph TB
     end
 
     subgraph postgres["Database"]
-      PG[(MySQL)]
+      PG[(PostgreSQL)]
       RD[(Redis)]
     end
   end
