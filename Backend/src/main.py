@@ -9,7 +9,6 @@ app.add_middleware(
     allow_headers=["*"],
     allow_credentials=False,
 )
-
 @app.get("/")
 def read_root():
     return {"message": "Hello World"}
