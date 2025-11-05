@@ -3,11 +3,12 @@
 ## 🌐 Architektura aplikacji
 **Frontend:** React (JS)\
 **Backend:** FastAPI (Python)\
-**Baza danych:** MySQL + Redis
+**Baza danych:** PostgreSQL + Redis
 
 ---
 ```mermaid
 graph TB
+  %% Każdy subgraph = 1 kontener
   subgraph app
     subgraph react["Frontend"]
       R[React SPA]
@@ -19,12 +20,31 @@ graph TB
     end
 
     subgraph postgres["Database"]
-      PG[(MySQL)]
+      PG[(PostgreSQL)]
+      RD[(Redis)]
     end
   end
 
   R --> B
   B --> PG
+  B --> RD
   W --> PG
 ```
----
+
+## Run project with docker compose
+
+```
+$ docker compose up
+```
+
+## Prepare ubuntu for playwright tests
+
+```
+$ sudo apt install x11-xserver-utils
+$ xhost +local:docker
+```
+
+## Run frontend tests with playwright
+
+```
+$ docker compose run frontend_tests
