@@ -7,11 +7,18 @@ name = "pypi"
 python-decouple = "*"
 fastapi = "*"
 uvicorn = "*"
+sqlmodel = "*"
+alembic = "*"
+psycopg = {extras = ["binary"], version = "*"}
+sqlalchemy = {extras = ["asyncio"], version = "*"}
+asyncpg = "*"
 
 [dev-packages]
 black = "*"
 isort = "*"
 mypy = "*"
+pytest-asyncio = "*"
+pytest = "*"
 
 [requires]
 python_version = "3.12"
