@@ -12,6 +12,12 @@ alembic = "*"
 psycopg = {extras = ["binary"], version = "*"}
 sqlalchemy = {extras = ["asyncio"], version = "*"}
 asyncpg = "*"
+redis = "*"
+aioredis = "*"
+typing-extensions = "*"
+pydantic = "*"
+pydantic-settings = "*"
+setuptools = "*"
 
 [dev-packages]
 black = "*"

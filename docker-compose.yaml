@@ -19,10 +19,40 @@ services:
             - ./Backend/start.py:/app/start.py
         depends_on:
             - backend_builder
+            - db
+            - redis
         working_dir: /app
         ports:
             - "8000:8000"
+        environment:
+            - DB_HOST=db
+            - DB_PORT=5432
+            - DB_NAME=mpt_db
+            - DB_USER=mpt_user
+            - DB_PASSWORD=mpt_pass
+            - REDIS_HOST=redis
+            - REDIS_PORT=6379
         command: ["/bin/bash", "-c", "pipenv run python start.py"]
+
+    db:
+        image: postgres:alpine
+        container_name: postgres_db
+        volumes:
+            - pg_data:/var/lib/postgresql/data
+        environment:
+            - POSTGRES_DB=mpt_db
+            - POSTGRES_USER=mpt_user
+            - POSTGRES_PASSWORD=mpt_pass
+        ports:
+            - "5432:5432"
+
+    redis:
+        image: redis:alpine
+        container_name: redis_cache
+        volumes:
+            - redis_data:/data
+        ports:
+            - "6379:6379"
 
     frontend:
         image: frontend:latest
@@ -51,3 +81,8 @@ services:
         volumes:
             - /tmp/.X11-unix:/tmp/.X11-unix
         command: ["pytest", "-v", "start.py"]
+
+
+volumes:
+    pg_data:
+    redis_data:
