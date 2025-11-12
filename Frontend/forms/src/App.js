@@ -1,39 +1,49 @@
-import React, { useEffect, useState } from "react";
-import "./App.css"
+import React, { useState } from "react";
+import PollForm from "./components/PollForm";
+import PollVote from "./components/PollVote";
+import PollResults from "./components/PollResults";
 
-
-const API_ENDPOINT = "http://localhost:8000";
 export default function App() {
-    const [msg, setMsg] = useState("");
-    const [loading, setLoading] = useState(true);
-    const [error, setError] = useState("");
+    const [polls, setPolls] = useState([]);      // wszystkie ankiety
+    const [currentPoll, setCurrentPoll] = useState(null); // aktywna ankieta
+    const [view, setView] = useState("form");    // "form" | "vote" | "results"
 
-    useEffect(() => {
-        (async () => {
-            try {
-                const res = await fetch(API_ENDPOINT, { headers: { Accept: "application/json" } });
-                if (!res.ok) throw new Error(`HTTP ${res.status}`);
-                const data = await res.json();
-                if (typeof data?.message === "string") setMsg(data.message);
-                else throw new Error('Brak pola "message" w odpowiedzi API');
-            } catch (e) {
-                setError(e.message || "Błąd nieznany");
-            } finally {
-                setLoading(false);
-            }
-        })();
-    }, []);
+    // tworzenie nowej ankiety
+    const handleCreatePoll = (poll) => {
+        const newPoll = {
+            ...poll,
+            id: Date.now(),
+            votes: Array(poll.options.length).fill(0),
+        };
+        setPolls([...polls, newPoll]);
+        setCurrentPoll(newPoll);
+        setView("vote");
+    };
+
+    // głosowanie
+    const handleVote = (index) => {
+        const updated = { ...currentPoll };
+        updated.votes[index] += 1;
+        setCurrentPoll(updated);
+        setView("results");
+    };
+
+    // reset do formularza
+    const reset = () => {
+        setCurrentPoll(null);
+        setView("form");
+    };
+
     return (
         <main className="App">
-            <h1>Witaj w React 👋</h1>
-            {loading ? (
-                <p>Ładowanie…</p>
-            ) : error ? (
-                <>
-                    <p className="error">Nie udało się pobrać wiadomości: {error}</p>
-                </>
-            ) : (
-                <p>{msg}</p>
+            <h1>📊 Platforma do Ankiet i Głosowań</h1>
+
+            {view === "form" && <PollForm onCreate={handleCreatePoll} />}
+            {view === "vote" && currentPoll && (
+                <PollVote poll={currentPoll} onVote={handleVote} />
+            )}
+            {view === "results" && currentPoll && (
+                <PollResults poll={currentPoll} onBack={reset} />
             )}
         </main>
     );

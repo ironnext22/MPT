@@ -1,7 +1,47 @@
 .App {
-    font-family: system-ui, Arial, sans-serif;
-    padding: 16px;
+    text-align: center;
+    margin-top: 40px;
+    font-family: Arial, sans-serif;
 }
-.error{
-    color: #b00020;
+
+.poll-form,
+.poll-vote,
+.poll-results {
+    margin: 20px auto;
+    padding: 20px;
+    border: 1px solid #ddd;
+    border-radius: 12px;
+    width: 400px;
+    background-color: #f9f9f9;
+}
+
+.input {
+    display: block;
+    margin: 10px auto;
+    padding: 8px;
+    width: 90%;
+}
+
+button {
+    margin: 10px;
+    padding: 8px 16px;
+    border: none;
+    border-radius: 6px;
+    cursor: pointer;
+    font-weight: bold;
+}
+
+.create-btn {
+    background-color: #2196f3;
+    color: white;
+}
+
+.vote-btn {
+    background-color: #4caf50;
+    color: white;
+}
+
+.back-btn {
+    background-color: #f44336;
+    color: white;
 }
