@@ -35,10 +35,14 @@ services:
         command: ["/bin/bash", "-c", "pipenv run python start.py"]
 
     db:
-        image: postgres:alpine
+        build:
+            context: .
+            dockerfile: Postgres/Dockerfile
+        image: db:latest
         container_name: postgres_db
         volumes:
             - pg_data:/var/lib/postgresql/data
+            - ./Postgres/init.sql:/docker-entrypoint-initdb.d/init.sql
         environment:
             - POSTGRES_DB=mpt_db
             - POSTGRES_USER=mpt_user
