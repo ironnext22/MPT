@@ -14,7 +14,7 @@ from sqlmodel import select
 
 from .models import User
 
-DATABASE_URL = "postgresql+asyncpg://mpt_user:mpt_pass@db:5432/postgres"
+DATABASE_URL = "postgresql+asyncpg://mpt_user:mpt_pass@db:5432/mpt_db"
 app = FastAPI()
 
 app.add_middleware(
