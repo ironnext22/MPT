@@ -1,20 +1,45 @@
 import asyncio
 import time
-from datetime import datetime
-from typing import AsyncGenerator
+from datetime import datetime, timedelta
+from typing import AsyncGenerator, Optional, List
 
 import redis.asyncio as redis
-from fastapi import Depends, FastAPI
+from fastapi import Depends, FastAPI, HTTPException, status
 from fastapi.middleware.cors import CORSMiddleware
-from sqlalchemy import text
-from sqlalchemy.ext.asyncio import (AsyncEngine, AsyncSession,
-                                    create_async_engine)
-from sqlalchemy.orm import sessionmaker
-from sqlmodel import select
+from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
 
-from .models import User
+from sqlalchemy import text
+from sqlalchemy.orm import sessionmaker
+from sqlalchemy.ext.asyncio import AsyncEngine, create_async_engine
+
+from sqlmodel import SQLModel, select
+from sqlmodel.ext.asyncio.session import AsyncSession
+
+from passlib.context import CryptContext
+from jose import jwt, JWTError
+
+from .models import (
+    User, Form, Question, Option,
+    Answer, Submission, Respondent
+)
+
+from .schemas import (
+    UserCreate, UserRead, Token,
+    FormCreate, FormRead,
+    SubmissionCreate, SubmissionRead,
+    RespondentCreate, RespondentRead
+)
+
 
 DATABASE_URL = "postgresql+asyncpg://mpt_user:mpt_pass@db:5432/mpt_db"
+
+SECRET_KEY = "ZMIEN_TO_NA_SEKRETNY_KLUCZ"
+ALGORITHM = "HS256"
+ACCESS_TOKEN_EXPIRE_MINUTES = 60
+
+pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
+oauth2_scheme = OAuth2PasswordBearer(tokenUrl="token")
+
 app = FastAPI()
 
 app.add_middleware(
@@ -34,19 +59,11 @@ async def wait_for_postgres(timeout: int = 30):
     start = time.time()
     while True:
         try:
-            engine: AsyncEngine = create_async_engine(
-                DATABASE_URL,
-                echo=True,
-                future=True,
-            )
-            print("Connected to PostgreSQL")
+            engine = create_async_engine(DATABASE_URL, echo=True, future=True)
             return engine
         except Exception as e:
             if time.time() - start > timeout:
-                raise TimeoutError(
-                    "Could not connect to PostgreSQL within timeout"
-                ) from e
-            print(f"Waiting for PostgreSQL... ({e})")
+                raise TimeoutError("Could not connect to PostgreSQL") from e
             await asyncio.sleep(2)
 
 
@@ -56,23 +73,79 @@ async def wait_for_redis(timeout: int = 30):
         try:
             client = redis.from_url("redis://redis", decode_responses=True)
             await client.ping()
-            print("Connected to Redis")
             return client
         except Exception as e:
             if time.time() - start > timeout:
-                raise TimeoutError("Could not connect to Redis within timeout") from e
-            print(f"Waiting for Redis... ({e})")
+                raise TimeoutError("Could not connect to Redis") from e
             await asyncio.sleep(2)
 
 
 @app.on_event("startup")
 async def startup_event():
     global pg_pool, redis_client, SessionLocal
-    pg_pool, redis_client = await asyncio.gather(wait_for_postgres(), wait_for_redis())
-    SessionLocal = sessionmaker(
-        bind=pg_pool, class_=AsyncSession, expire_on_commit=False
+
+    pg_pool, redis_client = await asyncio.gather(
+        wait_for_postgres(),
+        wait_for_redis()
     )
-    print("All services connected successfully.")
+
+    SessionLocal = sessionmaker(
+        bind=pg_pool,
+        class_=AsyncSession,
+        expire_on_commit=False,
+    )
+
+    async with pg_pool.begin() as conn:
+        await conn.run_sync(SQLModel.metadata.create_all)
+
+
+async def get_session() -> AsyncGenerator[AsyncSession, None]:
+    async with SessionLocal() as session:
+        yield session
+
+
+def hash_password(password: str):
+    return pwd_context.hash(password)
+
+
+def verify_password(password: str, hashed: str):
+    return pwd_context.verify(password, hashed)
+
+
+def create_access_token(data: dict, expires_delta: Optional[timedelta] = None):
+    to_encode = data.copy()
+    expire = datetime.utcnow() + (expires_delta or timedelta(
+        minutes=ACCESS_TOKEN_EXPIRE_MINUTES
+    ))
+    to_encode.update({"exp": expire})
+    return jwt.encode(to_encode, SECRET_KEY, algorithm=ALGORITHM)
+
+
+async def get_current_user(
+    token: str = Depends(oauth2_scheme),
+    session: AsyncSession = Depends(get_session),
+) -> User:
+
+    cred_exc = HTTPException(
+        status_code=status.HTTP_401_UNAUTHORIZED,
+        detail="Invalid authentication",
+        headers={"WWW-Authenticate": "Bearer"},
+    )
+
+    try:
+        payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
+        username = payload.get("sub")
+        if username is None:
+            raise cred_exc
+    except JWTError:
+        raise cred_exc
+
+    result = await session.exec(select(User).where(User.username == username))
+    user = result.first()
+    if not user:
+        raise cred_exc
+
+    return user
 
 
 @app.get("/")
@@ -85,41 +158,204 @@ async def check_connections():
     async with pg_pool.connect() as conn:
         result = await conn.execute(text("SELECT 1 AS ok"))
         row = result.mappings().one()
-        pg_ok = bool(row["ok"])
+        ok = bool(row["ok"])
 
     await redis_client.set("ping", "pong")
     pong = await redis_client.get("ping")
 
-    return {"postgres": pg_ok, "redis": pong}
+    return {"postgres": ok, "redis": pong}
 
 
-async def get_session() -> AsyncGenerator[AsyncSession, None]:
-    assert SessionLocal is not None, "SessionLocal is not initialized"
-    async with SessionLocal() as session:
-        yield session
+@app.post("/users", response_model=UserRead)
+async def register_user(
+    user_in: UserCreate,
+    session: AsyncSession = Depends(get_session),
+):
+    result = await session.exec(select(User).where(User.username == user_in.username))
+    existing = result.first()
+    if existing:
+        raise HTTPException(400, "Username already exists")
 
-
-@app.get("/test/users", response_model=list[User])
-async def test_get_users(session: AsyncSession = Depends(get_session)):
-    ts = int(time.time())
-
-    test_user = User(
-        username=f"test_user_{ts}",
-        password="test_password",
-        email=f"test_{ts}@example.com",
+    user = User(
+        username=user_in.username,
+        password=hash_password(user_in.password),
+        email=user_in.email,
         created_at=datetime.utcnow(),
     )
 
-    session.add(test_user)
+    session.add(user)
     await session.commit()
-    await session.refresh(test_user)
-    print(f"✅ Created test user with id={test_user.id}")
+    await session.refresh(user)
+    return user
 
-    result = await session.execute(select(User))
-    users = result.scalars().all()
 
-    await session.delete(test_user)
+@app.post("/token", response_model=Token)
+async def login(
+    form_data: OAuth2PasswordRequestForm = Depends(),
+    session: AsyncSession = Depends(get_session),
+):
+    result = await session.exec(select(User).where(User.username == form_data.username))
+    user = result.first()
+
+    if not user or not verify_password(form_data.password, user.password):
+        raise HTTPException(401, "Incorrect username or password")
+
+    token = create_access_token({"sub": user.username})
+    return Token(access_token=token)
+
+
+@app.get("/me", response_model=UserRead)
+async def get_me(current_user: User = Depends(get_current_user)):
+    return current_user
+
+
+@app.post("/forms", response_model=FormRead)
+async def create_form(
+    form_in: FormCreate,
+    user: User = Depends(get_current_user),
+    session: AsyncSession = Depends(get_session),
+):
+    form = Form(
+        creator_id=user.id,
+        title=form_in.title,
+        created_at=datetime.utcnow(),
+    )
+    session.add(form)
+    await session.flush()
+
+    for q in form_in.questions:
+        question = Question(
+            form_id=form.id,
+            question_text=q.question_text,
+            ans_kind=q.ans_kind,
+            is_required=q.is_required,
+            position=q.position,
+            created_at=datetime.utcnow(),
+        )
+        session.add(question)
+        await session.flush()
+
+        for o in q.options:
+            option = Option(
+                question_id=question.id,
+                option_text=o.option_text,
+                is_correct=o.is_correct,
+                position=o.position,
+                created_at=datetime.utcnow(),
+            )
+            session.add(option)
+
     await session.commit()
-    print(f"🗑️ Deleted test user with id={test_user.id}")
+    await session.refresh(form)
 
-    return users
+    for q in form.questions:
+        _ = q.options
+
+    return FormRead.model_validate(form)
+
+
+@app.get("/forms", response_model=List[FormRead])
+async def list_forms(
+    user: User = Depends(get_current_user),
+    session: AsyncSession = Depends(get_session),
+):
+    result = await session.exec(select(Form).where(Form.creator_id == user.id))
+    forms = result.all()
+
+    for f in forms:
+        for q in f.questions:
+            _ = q.options
+
+    return [FormRead.model_validate(f) for f in forms]
+
+
+@app.get("/forms/{form_id}", response_model=FormRead)
+async def get_form(
+    form_id: int,
+    session: AsyncSession = Depends(get_session),
+):
+    form = await session.get(Form, form_id)
+    if not form:
+        raise HTTPException(404, "Form not found")
+
+    for q in form.questions:
+        _ = q.options
+
+    return FormRead.model_validate(form)
+
+
+@app.post("/respondents", response_model=RespondentRead)
+async def create_respondent(
+    r_in: RespondentCreate,
+    session: AsyncSession = Depends(get_session),
+):
+    r = Respondent(
+        email=r_in.email,
+        name=r_in.name,
+        locale=r_in.locale,
+        gdpr_consent=r_in.gdpr_consent,
+        created_at=datetime.utcnow(),
+    )
+    session.add(r)
+    await session.commit()
+    await session.refresh(r)
+    return r
+
+
+@app.post("/submissions", response_model=SubmissionRead)
+async def create_submission(
+    sub_in: SubmissionCreate,
+    session: AsyncSession = Depends(get_session),
+):
+    form = await session.get(Form, sub_in.form_id)
+    if not form:
+        raise HTTPException(404, "Form not found")
+
+    submission = Submission(
+        form_id=form.id,
+        respondent_id=sub_in.respondent_id,
+        respondent_user_id=sub_in.respondent_user_id,
+        started_at=datetime.utcnow(),
+        submitted_at=datetime.utcnow(),
+    )
+    session.add(submission)
+    await session.flush()
+
+    for a in sub_in.answers:
+        answer = Answer(
+            submission_id=submission.id,
+            question_id=a.question_id,
+            value_text=a.value_text,
+            value_option_id=a.value_option_id,
+            created_at=datetime.utcnow(),
+        )
+        session.add(answer)
+
+    await session.commit()
+    await session.refresh(submission)
+
+    _ = submission.answers
+
+    return SubmissionRead.model_validate(submission)
+
+
+@app.get("/forms/{form_id}/submissions", response_model=List[SubmissionRead])
+async def get_submissions(
+    form_id: int,
+    user: User = Depends(get_current_user),
+    session: AsyncSession = Depends(get_session),
+):
+    form = await session.get(Form, form_id)
+    if not form:
+        raise HTTPException(404, "Form not found")
+
+    if form.creator_id != user.id:
+        raise HTTPException(403, "Not authorized")
+
+    result = await session.exec(select(Submission).where(Submission.form_id == form_id))
+    submissions = result.all()
+
+    for s in submissions:
+        _ = s.answers
+
+    return [SubmissionRead.model_validate(s) for s in submissions]

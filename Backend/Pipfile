@@ -4,27 +4,35 @@ verify_ssl = true
 name = "pypi"
 
 [packages]
-python-decouple = "*"
 fastapi = "*"
 uvicorn = "*"
+
 sqlmodel = "*"
-alembic = "*"
-psycopg = {extras = ["binary"], version = "*"}
 sqlalchemy = {extras = ["asyncio"], version = "*"}
 asyncpg = "*"
+psycopg = {extras = ["binary"], version = "*"}
+
 redis = "*"
-aioredis = "*"
-typing-extensions = "*"
+
+python-jose = {extras = ["cryptography"], version = "*"}
+passlib = {extras = ["bcrypt"], version = "*"}
+bcrypt = "<4.0"
+python-multipart = "*"
+
+python-decouple = "*"
 pydantic = "*"
 pydantic-settings = "*"
+
+typing-extensions = "*"
 setuptools = "*"
 
 [dev-packages]
 black = "*"
 isort = "*"
 mypy = "*"
-pytest-asyncio = "*"
 pytest = "*"
+pytest-asyncio = "*"
+httpx = "*"
 
 [requires]
 python_version = "3.12"
