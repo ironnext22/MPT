@@ -4,12 +4,12 @@ from datetime import datetime, timedelta
 from typing import AsyncGenerator, Optional, List
 
 import redis.asyncio as redis
-from fastapi import Depends, FastAPI, HTTPException, status
+from fastapi import Depends, FastAPI, HTTPException, status, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
 
 from sqlalchemy import text
-from sqlalchemy.orm import sessionmaker
+from sqlalchemy.orm import sessionmaker, selectinload
 from sqlalchemy.ext.asyncio import AsyncEngine, create_async_engine
 
 from sqlmodel import SQLModel, select
@@ -30,6 +30,7 @@ from .schemas import (
     RespondentCreate, RespondentRead
 )
 
+from .forms_links import (create_forms_token, decode_forms_token)
 
 DATABASE_URL = "postgresql+asyncpg://mpt_user:mpt_pass@db:5432/mpt_db"
 
@@ -246,10 +247,18 @@ async def create_form(
             session.add(option)
 
     await session.commit()
-    await session.refresh(form)
-
-    for q in form.questions:
-        _ = q.options
+    # await session.refresh(form)
+    #
+    # for q in form.questions:
+    #     _ = q.options
+    result = await session.exec(
+        select(Form)
+        .where(Form.id == form.id)
+        .options(
+            selectinload(Form.questions).selectinload(Question.options)
+        )
+    )
+    form_db = result.one()
 
     return FormRead.model_validate(form)
 
@@ -278,8 +287,14 @@ async def get_form(
     if not form:
         raise HTTPException(404, "Form not found")
 
-    for q in form.questions:
-        _ = q.options
+    result = await session.exec(
+        select(Form)
+        .where(Form.id == form.id)
+        .options(
+            selectinload(Form.questions).selectinload(Question.options)
+        )
+    )
+    form_db = result.one()
 
     return FormRead.model_validate(form)
 
@@ -359,3 +374,58 @@ async def get_submissions(
         _ = s.answers
 
     return [SubmissionRead.model_validate(s) for s in submissions]
+
+@app.post("/forms/{forms_id}/link")
+async def create_forms_link(
+    forms_id: int,
+    request: Request,
+    user: User = Depends(get_current_user),
+    session: AsyncSession = Depends(get_session)
+):
+    form = await session.get(Form, forms_id)
+    if not form:
+        raise HTTPException(404, "Form not found")
+
+    if form.creator_id != user.id:
+        raise HTTPException(status_code=403, detail="Not authorized")
+
+    creator = await session.get(User, form.creator_id)
+    if not creator:
+        raise HTTPException(status_code=400, detail="Creator not found")
+
+    token = create_forms_token(form.id, creator.email)
+    share_link = request.url_for("get_form_by_token", token=token)
+
+    return {
+        "form_id": form.id,
+        "token": token,
+        "share_link": str(share_link),
+    }
+
+@app.get("/forms/public/{token}", response_model=FormRead, name="get_form_by_token")
+async def get_form_by_token(
+    token: str,
+    session: AsyncSession = Depends(get_session),
+):
+    payload = decode_forms_token(token)
+    form_id = payload["form_id"]
+    creator_email = payload["creator_email"]
+
+    form = await session.get(Form, form_id)
+    if not form:
+        raise HTTPException(status_code=404, detail="Form not found")
+
+    creator = await session.get(User, form.creator_id)
+    if not creator or creator.email != creator_email:
+        raise HTTPException(status_code=400, detail="Token does not match form")
+
+    result = await session.exec(
+        select(Form)
+        .where(Form.id == form.id)
+        .options(
+            selectinload(Form.questions).selectinload(Question.options)
+        )
+    )
+    form_db = result.one()
+
+    return FormRead.model_validate(form)
