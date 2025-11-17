@@ -1,6 +1,7 @@
 from datetime import datetime
 from typing import Optional
 
+from sqlalchemy import Column, Enum as PgEnum
 from sqlmodel import Field, Relationship, SQLModel
 
 
@@ -78,7 +79,16 @@ class Question(SQLModel, table=True):
 
     form_id: int = Field(foreign_key="forms.forms.id")
     question_text: str
-    ans_kind: str
+    ans_kind: str = Field(
+        sa_column=Column(
+            PgEnum(
+                'short_text', 'long_text', 'single_choice', 'multiple_choice',
+                name="ans_type",
+                schema="forms",
+            ),
+            nullable=False,
+        )
+    )
     is_required: bool
     position: int
     created_at: datetime
