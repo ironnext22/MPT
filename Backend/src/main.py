@@ -30,7 +30,7 @@ from .schemas import (
     RespondentCreate, RespondentRead
 )
 
-from .forms_links import (create_forms_token, decode_forms_token)
+from .forms_links import (create_forms_token, decode_forms_token, generate_qr_code)
 
 DATABASE_URL = "postgresql+asyncpg://mpt_user:mpt_pass@db:5432/mpt_db"
 
@@ -247,7 +247,7 @@ async def create_form(
             session.add(option)
 
     await session.commit()
-    # await session.refresh(form)
+    await session.refresh(form)
     #
     # for q in form.questions:
     #     _ = q.options
@@ -396,10 +396,13 @@ async def create_forms_link(
     token = create_forms_token(form.id, creator.email)
     share_link = request.url_for("get_form_by_token", token=token)
 
+    qr_code = generate_qr_code(str(share_link))
+
     return {
         "form_id": form.id,
         "token": token,
         "share_link": str(share_link),
+        "qr_code": qr_code,
     }
 
 @app.get("/forms/public/{token}", response_model=FormRead, name="get_form_by_token")

@@ -6,25 +6,21 @@ name = "pypi"
 [packages]
 fastapi = "*"
 uvicorn = "*"
-
 sqlmodel = "*"
 sqlalchemy = {extras = ["asyncio"], version = "*"}
 asyncpg = "*"
 psycopg = {extras = ["binary"], version = "*"}
-
 redis = "*"
-
 python-jose = {extras = ["cryptography"], version = "*"}
 passlib = {extras = ["bcrypt"], version = "*"}
 bcrypt = "<4.0"
 python-multipart = "*"
-
 python-decouple = "*"
 pydantic = "*"
 pydantic-settings = "*"
-
 typing-extensions = "*"
 setuptools = "*"
+qrcode = {extras = ["pil"], version = "*"}
 
 [dev-packages]
 black = "*"
