@@ -1,7 +1,8 @@
+import uuid
 from datetime import datetime
 from typing import Optional
 
-from sqlalchemy import Column, Enum as PgEnum
+from sqlalchemy import Column, Enum as PgEnum, UUID
 from sqlmodel import Field, Relationship, SQLModel
 
 
@@ -61,7 +62,10 @@ class Submission(SQLModel, table=True):
         default=None, foreign_key="forms.users.id"
     )
 
-    access_token: Optional[str] = None
+    access_token: Optional[uuid.UUID] = Field(
+        default_factory=uuid.uuid4,
+        sa_column=Column(UUID(as_uuid=True), nullable=True),
+    )
     started_at: datetime
     submitted_at: Optional[datetime] = None
 
@@ -122,8 +126,8 @@ class Answer(SQLModel, table=True):
 
     submission_id: int = Field(foreign_key="forms.submissions.id")
     question_id: int = Field(foreign_key="forms.questions.id")
-    value_text: Optional[str] = None
-    value_option_id: Optional[int] = Field(default=None, foreign_key="forms.options.id")
+    answer_text: Optional[str] = None
+    option_id: Optional[int] = Field(default=None, foreign_key="forms.options.id")
     created_at: datetime
 
     submission: Submission = Relationship(back_populates="answers")

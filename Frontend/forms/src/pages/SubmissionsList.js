@@ -55,15 +55,15 @@ export default function SubmissionsList() {
                                 <td>{new Date(sub.started_at).toLocaleString()}</td>
 
                                 {formInfo.questions.map(q => {
-                                    const answer = sub.answers.find(a => a.question_id === q.id);
-
+                                    const answer = sub.answers.find(a => Number(a.question_id) === Number(q.id));
+                                    console.log("ans:", answer);
                                     let cellContent = "-";
                                     if (answer) {
-                                        if (answer.value_text) {
-                                            cellContent = answer.value_text;
-                                        } else if (answer.value_option_id) {
-                                            const option = q.options.find(o => o.id === answer.value_option_id);
-                                            cellContent = option ? option.option_text : `Opcja ID: ${answer.value_option_id}`;
+                                        if (answer.answer_text) {
+                                            cellContent = answer.answer_text;
+                                        } else if (answer.option_id) {
+                                            const option = q.options.find(o => o.id === answer.option_id);
+                                            cellContent = option ? option.option_text : `Opcja ID: ${answer.option_id}`;
                                         }
                                     }
 

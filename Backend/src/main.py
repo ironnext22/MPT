@@ -260,7 +260,7 @@ async def create_form(
     )
     form_db = result.one()
 
-    return FormRead.model_validate(form)
+    return FormRead.model_validate(form_db)
 
 
 @app.get("/forms", response_model=List[FormRead])
@@ -271,9 +271,19 @@ async def list_forms(
     result = await session.exec(select(Form).where(Form.creator_id == user.id))
     forms = result.all()
 
-    for f in forms:
-        for q in f.questions:
-            _ = q.options
+    # for f in forms:
+    #     for q in f.questions:
+    #         _ = q.options
+
+    stmt = (
+        select(Form)
+        .where(Form.creator_id == user.id)
+        .options(
+            selectinload(Form.questions).selectinload(Question.options)
+        )
+    )
+    result = await session.exec(stmt)
+    forms = result.unique().all()
 
     return [FormRead.model_validate(f) for f in forms]
 
@@ -296,7 +306,7 @@ async def get_form(
     )
     form_db = result.one()
 
-    return FormRead.model_validate(form)
+    return FormRead.model_validate(form_db)
 
 
 @app.post("/respondents", response_model=RespondentRead)
@@ -337,11 +347,13 @@ async def create_submission(
     await session.flush()
 
     for a in sub_in.answers:
+        if (a.answer_text is None or a.answer_text == "") and a.option_id is None:
+            continue
         answer = Answer(
             submission_id=submission.id,
             question_id=a.question_id,
-            value_text=a.value_text,
-            value_option_id=a.value_option_id,
+            answer_text=a.answer_text,
+            option_id=a.option_id,
             created_at=datetime.utcnow(),
         )
         session.add(answer)
@@ -349,9 +361,14 @@ async def create_submission(
     await session.commit()
     await session.refresh(submission)
 
-    _ = submission.answers
+    result = await session.exec(
+        select(Submission)
+        .where(Submission.id == submission.id)
+        .options(selectinload(Submission.answers))
+    )
+    sub_db = result.one()
 
-    return SubmissionRead.model_validate(submission)
+    return SubmissionRead.model_validate(sub_db)
 
 
 @app.get("/forms/{form_id}/submissions", response_model=List[SubmissionRead])
@@ -370,8 +387,13 @@ async def get_submissions(
     result = await session.exec(select(Submission).where(Submission.form_id == form_id))
     submissions = result.all()
 
-    for s in submissions:
-        _ = s.answers
+    stmt = (
+        select(Submission)
+        .where(Submission.form_id == form_id)
+        .options(selectinload(Submission.answers))
+    )
+    result = await session.exec(stmt)
+    submissions = result.unique().all()
 
     return [SubmissionRead.model_validate(s) for s in submissions]
 
@@ -431,4 +453,4 @@ async def get_form_by_token(
     )
     form_db = result.one()
 
-    return FormRead.model_validate(form)
+    return FormRead.model_validate(form_db)
