@@ -1,4 +1,3 @@
-// src/pages/PublicForm.js
 import React, { useEffect, useState } from "react";
 import { useParams } from "react-router-dom";
 import api from "../api";
@@ -6,93 +5,152 @@ import api from "../api";
 export default function PublicForm() {
     const { token } = useParams();
     const [form, setForm] = useState(null);
+    const [submitted, setSubmitted] = useState(false);
     const [respondentEmail, setRespondentEmail] = useState("");
-    const [answers, setAnswers] = useState({});
+    const [answersMap, setAnswersMap] = useState({});
 
     useEffect(() => {
-        async function load() {
-            try {
-                const res = await api.get(`/forms/public/${token}`);
-                setForm(res.data);
-            } catch (err) {
-                console.error(err);
-                alert("Błąd ładowania formularza");
-            }
-        }
-        load();
+        // Używamy backticków ` ` do wstawienia tokena
+        api.get(`/forms/public/${token}`)
+            .then(res => setForm(res.data))
+            .catch(err => alert("Błąd: Link jest nieprawidłowy lub wygasł."));
     }, [token]);
 
-    function setAnswer(questionId, value, optionId=null) {
-        setAnswers(a => ({ ...a, [questionId]: { question_id: questionId, value_text: value, value_option_id: optionId } }));
-    }
+    const handleAnswerChange = (qId, value) => {
+        setAnswersMap(prev => ({ ...prev, [qId]: value }));
+    };
 
     async function submit(e) {
         e.preventDefault();
-        try {
-            // najpierw utwórz respondent
-            const r = await api.post("/respondents", { email: respondentEmail, gdpr_consent: true });
-            const answersArr = Object.values(answers);
+        if (!form) return;
 
-            await api.post("/submissions", {
-                form_id: form.id,
-                respondent_id: r.data.id,
-                answers: answersArr
-            });
-            alert("Dziękujemy za odpowiedź");
+        let respondentId = null;
+        if (respondentEmail) {
+            try {
+                const rRes = await api.post("/respondents", {
+                    email: respondentEmail,
+                    gdpr_consent: true
+                });
+                respondentId = rRes.data.id;
+            } catch (err) {
+                console.warn("Nie udało się zapisać respondenta", err);
+            }
+        }
+
+        const answersList = form.questions.map(q => {
+            const val = answersMap[q.id];
+            if (!val) return null;
+
+            const answerObj = { question_id: q.id };
+
+            if (["short_text", "long_text"].includes(q.ans_kind)) {
+                answerObj.value_text = val;
+            } else if (["single_choice", "multiple_choice"].includes(q.ans_kind)) {
+                answerObj.value_option_id = parseInt(val);
+            }
+            return answerObj;
+        }).filter(a => a !== null);
+
+        const payload = {
+            form_id: form.id,
+            respondent_id: respondentId,
+            answers: answersList
+        };
+
+        try {
+            await api.post("/submissions", payload);
+            setSubmitted(true);
         } catch (err) {
             console.error(err);
-            alert("Błąd wysyłki odpowiedzi");
+            alert("Wystąpił błąd podczas wysyłania ankiety.");
         }
     }
 
-    if (!form) return <div style={{ padding: 20 }}>Ładowanie...</div>;
+    if (submitted) {
+        return (
+            <div style={{ padding: 40, textAlign: "center" }}>
+                <h1>Dziękujemy!</h1>
+                <p>Twoja odpowiedź została zapisana.</p>
+            </div>
+        );
+    }
+
+    if (!form) return <div style={{ padding: 20 }}>Ładowanie ankiety...</div>;
 
     return (
-        <div style={{ padding: 20 }}>
-            <h2>{form.title}</h2>
+        <div style={{ padding: 20, maxWidth: 600, margin: "0 auto" }}>
+            <h1>{form.title}</h1>
             <form onSubmit={submit}>
-                <div>
-                    <label>Twój email</label>
-                    <input value={respondentEmail} onChange={e=>setRespondentEmail(e.target.value)} required />
+                <div style={{ marginBottom: 20, padding: 15, background: "#f8f9fa", borderRadius: 8 }}>
+                    <label style={{ display:"block", marginBottom: 5 }}>Twój e-mail (opcjonalnie):</label>
+                    <input
+                        type="email"
+                        value={respondentEmail}
+                        onChange={e=>setRespondentEmail(e.target.value)}
+                        style={{ width: "100%", padding: 8 }}
+                        placeholder="name@example.com"
+                    />
+                    <small style={{ color: "#666" }}>Podanie e-maila oznacza zgodę na przetwarzanie danych (RODO).</small>
                 </div>
 
-                {form.questions.map(q => (
-                    <div key={q.id} style={{ marginTop: 10 }}>
-                        <div><strong>{q.question_text}</strong></div>
-                        {q.ans_kind === "short_text" && (
-                            <input onChange={e=>setAnswer(q.id, e.target.value, null)} required={q.is_required} />
+                {form.questions.map((q, idx) => (
+                    <div key={q.id} style={{ marginBottom: 25 }}>
+                        <p style={{ fontWeight: "bold", marginBottom: 10 }}>
+                            {idx + 1}. {q.question_text} {q.is_required && <span style={{color:"red"}}>*</span>}
+                        </p>
+
+                        {["short_text", "long_text"].includes(q.ans_kind) && (
+                            <input
+                                type="text"
+                                required={q.is_required}
+                                onChange={e => handleAnswerChange(q.id, e.target.value)}
+                                style={{ width: "100%", padding: 8 }}
+                            />
                         )}
-                        {q.ans_kind === "long_text" && (
-                            <textarea onChange={e=>setAnswer(q.id, e.target.value, null)} required={q.is_required} />
-                        )}
-                        {q.ans_kind === "single_choice" && q.options.map(o => (
-                            <div key={o.id}>
+
+                        {q.ans_kind === "single_choice" && q.options.map(opt => (
+                            <div key={opt.id} style={{ marginBottom: 5 }}>
                                 <label>
-                                    <input type="radio" name={`q${q.id}`} onChange={()=>setAnswer(q.id, null, o.id)} />
-                                    {o.option_text}
+                                    <input
+                                        type="radio"
+                                        name={`q_${q.id}`} // Poprawione backticki
+                                        value={opt.id}
+                                        required={q.is_required}
+                                        onChange={(e) => handleAnswerChange(q.id, e.target.value)}
+                                    />
+                                    {" "}{opt.option_text}
                                 </label>
                             </div>
                         ))}
-                        {q.ans_kind === "multiple_choice" && q.options.map(o => (
-                            <div key={o.id}>
-                                <label>
-                                    <input type="checkbox" onChange={(e)=>{
-                                        const prev = answers[q.id]?.value_option_id || [];
-                                        let vals = Array.isArray(prev) ? prev.slice() : (prev ? [prev] : []);
-                                        if (e.target.checked) vals.push(o.id); else vals = vals.filter(x=>x!==o.id);
-                                        setAnswers(a => ({ ...a, [q.id]: { question_id: q.id, value_text: null, value_option_id: vals.length ? vals[0] : null } }));
-                                        // NOTE: backend current model stores single option_id; to support multi you must adapt backend.
-                                    }} />
-                                    {o.option_text}
-                                </label>
+
+                        {q.ans_kind === "multiple_choice" && (
+                            <div>
+                                <p style={{ fontSize: "0.8em", fontStyle: "italic" }}>(Wybierz jedną opcję)</p>
+                                {q.options.map(opt => (
+                                    <div key={opt.id}>
+                                        <label>
+                                            <input
+                                                type="radio"
+                                                name={`q_${q.id}`}
+                                                value={opt.id}
+                                                required={q.is_required}
+                                                onChange={(e) => handleAnswerChange(q.id, e.target.value)}
+                                            />
+                                            {" "}{opt.option_text}
+                                        </label>
+                                    </div>
+                                ))}
                             </div>
-                        ))}
+                        )}
                     </div>
                 ))}
 
-                <div style={{ marginTop: 12 }}>
-                    <button type="submit">Wyślij odpowiedź</button>
-                </div>
+                <button
+                    type="submit"
+                    style={{ padding: "10px 20px", fontSize: "1.1em", cursor: "pointer", background: "#007bff", color: "white", border: "none", borderRadius: 5 }}
+                >
+                    Wyślij zgłoszenie
+                </button>
             </form>
         </div>
     );

@@ -1,38 +1,80 @@
-// src/pages/SubmissionsList.js
-import React, { useState, useEffect } from "react";
-import { useParams } from "react-router-dom";
+import React, { useEffect, useState } from "react";
+import { useParams, useNavigate } from "react-router-dom";
 import api from "../api";
 
 export default function SubmissionsList() {
-    const { id } = useParams(); // oczekuje /forms/:id/submissions
-    const [subs, setSubs] = useState([]);
+    const { id } = useParams(); // to jest form_id
+    const nav = useNavigate();
 
-    useEffect(()=> {
-        async function load() {
-            try {
-                const res = await api.get(`/forms/${id}/submissions`);
-                setSubs(res.data);
-            } catch (err) {
-                console.error(err);
-                alert("Błąd ładowania zgłoszeń");
-            }
-        }
-        load();
-    }, [id]);
+    const [submissions, setSubmissions] = useState([]);
+    const [formInfo, setFormInfo] = useState(null);
+    const [loading, setLoading] = useState(true);
+
+    useEffect(() => {
+        Promise.all([
+            api.get(`/forms/${id}`),              // Poprawione backticki
+            api.get(`/forms/${id}/submissions`)   // Poprawione backticki
+        ]).then(([formRes, subRes]) => {
+            setFormInfo(formRes.data);
+            setSubmissions(subRes.data);
+            setLoading(false);
+        }).catch(err => {
+            console.error(err);
+            alert("Błąd ładowania wyników");
+            nav("/dashboard");
+        });
+    }, [id, nav]);
+
+    if (loading) return <div style={{ padding: 20 }}>Ładowanie wyników...</div>;
 
     return (
         <div style={{ padding: 20 }}>
-            <h2>Zgłoszenia</h2>
-            {subs.map(s => (
-                <div key={s.id} style={{ border: "1px solid #ddd", margin: 8, padding: 8 }}>
-                    <div>ID: {s.id} — respondent: {s.respondent_id || s.respondent_user_id} — {s.submitted_at}</div>
-                    <ul>
-                        {s.answers.map(a => (
-                            <li key={a.id}>Q {a.question_id}: {a.value_text ?? `option ${a.value_option_id}`}</li>
+            <button onClick={() => nav("/dashboard")} style={{ marginBottom: 20 }}>← Wróć do Dashboardu</button>
+
+            <h2>Wyniki: {formInfo.title}</h2>
+            <p>Liczba zgłoszeń: <strong>{submissions.length}</strong></p>
+
+            {submissions.length === 0 ? (
+                <p style={{ fontStyle: "italic", color: "#666" }}>Nikt jeszcze nie wypełnił tej ankiety.</p>
+            ) : (
+                <div style={{ overflowX: "auto" }}>
+                    <table border="1" cellPadding="10" style={{ borderCollapse: "collapse", width: "100%", minWidth: 600 }}>
+                        <thead style={{ background: "#f0f0f0" }}>
+                        <tr>
+                            <th>ID Zgłoszenia</th>
+                            <th>Data</th>
+                            {formInfo.questions.map(q => (
+                                <th key={q.id} style={{ minWidth: 150 }}>{q.question_text}</th>
+                            ))}
+                        </tr>
+                        </thead>
+                        <tbody>
+                        {submissions.map(sub => (
+                            <tr key={sub.id}>
+                                <td>#{sub.id}</td>
+                                <td>{new Date(sub.started_at).toLocaleString()}</td>
+
+                                {formInfo.questions.map(q => {
+                                    const answer = sub.answers.find(a => a.question_id === q.id);
+
+                                    let cellContent = "-";
+                                    if (answer) {
+                                        if (answer.value_text) {
+                                            cellContent = answer.value_text;
+                                        } else if (answer.value_option_id) {
+                                            const option = q.options.find(o => o.id === answer.value_option_id);
+                                            cellContent = option ? option.option_text : `Opcja ID: ${answer.value_option_id}`;
+                                        }
+                                    }
+
+                                    return <td key={q.id}>{cellContent}</td>;
+                                })}
+                            </tr>
                         ))}
-                    </ul>
+                        </tbody>
+                    </table>
                 </div>
-            ))}
+            )}
         </div>
     );
 }

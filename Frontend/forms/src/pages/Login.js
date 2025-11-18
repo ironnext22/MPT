@@ -1,7 +1,8 @@
+// src/pages/Login.js
 import React, { useState, useContext } from "react";
 import api from "../api";
 import { AuthContext } from "../contexts/AuthContext";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, Link } from "react-router-dom";
 
 export default function Login() {
     const [username, setUsername] = useState("");
@@ -11,45 +12,48 @@ export default function Login() {
 
     async function submit(e) {
         e.preventDefault();
+
+        // KLUCZOWA ZMIANA:
+        // FastAPI oczekuje danych jako formularz, nie JSON.
+        const formData = new FormData();
+        formData.append("username", username);
+        formData.append("password", password);
+
         try {
-            const form = new URLSearchParams();
-            form.append("username", username);
-            form.append("password", password);
-            const res = await api.post("/token", form);
+            // Wysyłamy formData zamiast obiektu JSON
+            const res = await api.post("/token", formData);
             setToken(res.data.access_token);
             nav("/dashboard");
         } catch (err) {
-            alert("Błąd logowania");
             console.error(err);
+            alert("Błąd logowania. Sprawdź dane.");
         }
     }
 
     return (
-        <div style={{ padding: 20 }}>
+        <div style={{ padding: 20, maxWidth: 400, margin: "0 auto" }}>
             <h2>Logowanie</h2>
-
             <form onSubmit={submit}>
-                <div>
-                    <label>Username</label>
-                    <input value={username} onChange={e=>setUsername(e.target.value)} />
+                <div style={{ marginBottom: 10 }}>
+                    <label>Nazwa użytkownika</label><br/>
+                    <input
+                        value={username}
+                        onChange={e => setUsername(e.target.value)}
+                        style={{ width: "100%", padding: 8 }}
+                    />
                 </div>
-                <div>
-                    <label>Password</label>
-                    <input type="password" value={password} onChange={e=>setPassword(e.target.value)} />
+                <div style={{ marginBottom: 10 }}>
+                    <label>Hasło</label><br/>
+                    <input
+                        type="password"
+                        value={password}
+                        onChange={e => setPassword(e.target.value)}
+                        style={{ width: "100%", padding: 8 }}
+                    />
                 </div>
                 <button type="submit">Zaloguj</button>
             </form>
-
-            {/* 🔥 DEBUG: Przycisk omijający logowanie */}
-            <button
-                onClick={() => {
-                    setToken("DEV-TOKEN");
-                    nav("/dashboard");
-                }}
-                style={{ marginTop: 10 }}
-            >
-                Skip login (DEV)
-            </button>
+            <p>Nie masz konta? <Link to="/register">Zarejestruj się</Link></p>
         </div>
     );
 }

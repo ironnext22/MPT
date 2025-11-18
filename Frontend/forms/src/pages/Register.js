@@ -1,43 +1,53 @@
-// src/pages/Register.js
 import React, { useState } from "react";
 import api from "../api";
 import { useNavigate } from "react-router-dom";
 
 export default function Register() {
-    const [username, setUsername] = useState("");
-    const [password, setPassword] = useState("");
-    const [email, setEmail] = useState("");
+    const [formData, setFormData] = useState({ username: "", email: "", password: "" });
     const nav = useNavigate();
 
     async function submit(e) {
         e.preventDefault();
         try {
-            await api.post("/users", { username, password, email });
-            alert("Zarejestrowano. Zaloguj się.");
+            await api.post("/users", formData);
+            alert("Zarejestrowano pomyślnie! Możesz się zalogować.");
             nav("/login");
         } catch (err) {
-            alert("Błąd rejestracji");
             console.error(err);
+            alert("Błąd rejestracji (np. użytkownik już istnieje).");
         }
     }
 
     return (
-        <div style={{ padding: 20 }}>
+        <div style={{ padding: 20, maxWidth: 400, margin: "0 auto" }}>
             <h2>Rejestracja</h2>
             <form onSubmit={submit}>
-                <div>
-                    <label>Username</label>
-                    <input value={username} onChange={e=>setUsername(e.target.value)} />
+                <div style={{ marginBottom: 10 }}>
+                    <label>Nazwa użytkownika</label><br/>
+                    <input
+                        value={formData.username}
+                        onChange={e => setFormData({...formData, username: e.target.value})}
+                        style={{ width: "100%" }}
+                    />
                 </div>
-                <div>
-                    <label>Email</label>
-                    <input value={email} onChange={e=>setEmail(e.target.value)} />
+                <div style={{ marginBottom: 10 }}>
+                    <label>Email</label><br/>
+                    <input
+                        value={formData.email}
+                        onChange={e => setFormData({...formData, email: e.target.value})}
+                        style={{ width: "100%" }}
+                    />
                 </div>
-                <div>
-                    <label>Password</label>
-                    <input type="password" value={password} onChange={e=>setPassword(e.target.value)} />
+                <div style={{ marginBottom: 10 }}>
+                    <label>Hasło</label><br/>
+                    <input
+                        type="password"
+                        value={formData.password}
+                        onChange={e => setFormData({...formData, password: e.target.value})}
+                        style={{ width: "100%" }}
+                    />
                 </div>
-                <button type="submit">Zarejestruj</button>
+                <button type="submit">Zarejestruj się</button>
             </form>
         </div>
     );
