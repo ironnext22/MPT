@@ -1,4 +1,3 @@
-// src/pages/Login.js
 import React, { useState, useContext } from "react";
 import api from "../api";
 import { AuthContext } from "../contexts/AuthContext";
@@ -28,6 +27,7 @@ export default function Login() {
     return (
         <div style={{ padding: 20 }}>
             <h2>Logowanie</h2>
+
             <form onSubmit={submit}>
                 <div>
                     <label>Username</label>
@@ -39,6 +39,17 @@ export default function Login() {
                 </div>
                 <button type="submit">Zaloguj</button>
             </form>
+
+            {/* 🔥 DEBUG: Przycisk omijający logowanie */}
+            <button
+                onClick={() => {
+                    setToken("DEV-TOKEN");
+                    nav("/dashboard");
+                }}
+                style={{ marginTop: 10 }}
+            >
+                Skip login (DEV)
+            </button>
         </div>
     );
 }
