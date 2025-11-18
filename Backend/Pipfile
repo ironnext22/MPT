@@ -21,14 +21,13 @@ pydantic-settings = "*"
 typing-extensions = "*"
 setuptools = "*"
 qrcode = {extras = ["pil"], version = "*"}
+pytest-asyncio = "*"
+pytest = "*"
 
 [dev-packages]
 black = "*"
 isort = "*"
 mypy = "*"
-pytest = "*"
-pytest-asyncio = "*"
-httpx = "*"
 
 [requires]
 python_version = "3.12"

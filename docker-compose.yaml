@@ -71,6 +71,29 @@ services:
             - "3000:3000"
         command: ["/bin/bash", "-c", "npm run start"]
 
+
+    backend_tests:
+        image: backend:latest
+        container_name: backend_tests
+        volumes:
+            - ./Backend:/app
+        depends_on:
+            - backend_builder
+            - db
+            - redis
+        working_dir: /app
+        ports:
+            - "8001:8000"
+        environment:
+            - DB_HOST=db
+            - DB_PORT=5432
+            - DB_NAME=mpt_db
+            - DB_USER=mpt_user
+            - DB_PASSWORD=mpt_pass
+            - REDIS_HOST=redis
+            - REDIS_PORT=6379
+        command: ["/bin/bash", "-c", "pipenv run pytest tests -v -s"]
+
     # frontend_tests:
     #     build:
     #         context: .
