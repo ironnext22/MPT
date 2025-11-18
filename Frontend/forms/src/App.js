@@ -1,50 +1,39 @@
-import React, { useState } from "react";
-import PollForm from "./components/PollForm";
-import PollVote from "./components/PollVote";
-import PollResults from "./components/PollResults";
+// src/App.js
+import React, { useContext } from "react";
+import { Routes, Route, Link, Navigate } from "react-router-dom";
+import Login from "./pages/Login";
+import Register from "./pages/Register";
+import Dashboard from "./pages/Dashboard";
+import FormBuilder from "./pages/FormBuilder";
+import PublicForm from "./pages/PublicForm";
+import SubmissionsList from "./pages/SubmissionsList";
+import { AuthContext } from "./contexts/AuthContext";
+
+function PrivateRoute({ children }) {
+    const { token } = useContext(AuthContext);
+    return token ? children : <Navigate to="/login" replace />;
+}
 
 export default function App() {
-    const [polls, setPolls] = useState([]);      // wszystkie ankiety
-    const [currentPoll, setCurrentPoll] = useState(null); // aktywna ankieta
-    const [view, setView] = useState("form");    // "form" | "vote" | "results"
-
-    // tworzenie nowej ankiety
-    const handleCreatePoll = (poll) => {
-        const newPoll = {
-            ...poll,
-            id: Date.now(),
-            votes: Array(poll.options.length).fill(0),
-        };
-        setPolls([...polls, newPoll]);
-        setCurrentPoll(newPoll);
-        setView("vote");
-    };
-
-    // głosowanie
-    const handleVote = (index) => {
-        const updated = { ...currentPoll };
-        updated.votes[index] += 1;
-        setCurrentPoll(updated);
-        setView("results");
-    };
-
-    // reset do formularza
-    const reset = () => {
-        setCurrentPoll(null);
-        setView("form");
-    };
-
     return (
-        <main className="App">
-            <h1>📊 Platforma do Ankiet i Głosowań</h1>
+        <div>
+            <nav style={{ padding: 10, borderBottom: "1px solid #ddd" }}>
+                <Link to="/">Home</Link>{" | "}
+                <Link to="/dashboard">Dashboard</Link>{" | "}
+                <Link to="/login">Login</Link>
+            </nav>
 
-            {view === "form" && <PollForm onCreate={handleCreatePoll} />}
-            {view === "vote" && currentPoll && (
-                <PollVote poll={currentPoll} onVote={handleVote} />
-            )}
-            {view === "results" && currentPoll && (
-                <PollResults poll={currentPoll} onBack={reset} />
-            )}
-        </main>
+            <Routes>
+                <Route path="/" element={<div style={{ padding: 20 }}>Witamy — aplikacja ankiet</div>} />
+                <Route path="/login" element={<Login />} />
+                <Route path="/register" element={<Register />} />
+
+                <Route path="/dashboard" element={<PrivateRoute><Dashboard/></PrivateRoute>} />
+                <Route path="/forms/new" element={<PrivateRoute><FormBuilder/></PrivateRoute>} />
+                <Route path="/forms/:id/submissions" element={<PrivateRoute><SubmissionsList/></PrivateRoute>} />
+
+                <Route path="/forms/public/:token" element={<PublicForm/>} />
+            </Routes>
+        </div>
     );
 }
