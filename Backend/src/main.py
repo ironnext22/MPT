@@ -416,7 +416,13 @@ async def create_forms_link(
         raise HTTPException(status_code=400, detail="Creator not found")
 
     token = create_forms_token(form.id, creator.email)
-    share_link = request.url_for("get_form_by_token", token=token)
+    backend_link = request.url_for("get_form_by_token", token=token)
+
+    origin = request.headers.get("origin")
+    if origin:
+        share_link = f"{origin}/forms/public/{token}"
+    else:
+        share_link = str(backend_link)
 
     qr_code = generate_qr_code(str(share_link))
 
