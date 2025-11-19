@@ -10,26 +10,43 @@ export default function PublicForm() {
     const [answersMap, setAnswersMap] = useState({});
 
     useEffect(() => {
-        // Używamy backticków ` ` do wstawienia tokena
         api.get(`/forms/public/${token}`)
-            .then(res => setForm(res.data))
-            .catch(err => alert("Błąd: Link jest nieprawidłowy lub wygasł."));
+            .then((res) => setForm(res.data))
+            .catch(() =>
+                alert("Błąd: link do ankiety jest nieprawidłowy lub wygasł.")
+            );
     }, [token]);
 
+    // tekst + single_choice (jedna wartość)
     const handleAnswerChange = (qId, value) => {
-        setAnswersMap(prev => ({ ...prev, [qId]: value }));
+        setAnswersMap((prev) => ({ ...prev, [qId]: value }));
     };
 
-    async function submit(e) {
+    // multiple_choice (tablica zaznaczonych opcji)
+    const handleMultipleChoiceChange = (qId, optionId, checked) => {
+        setAnswersMap((prev) => {
+            const prevVals = Array.isArray(prev[qId]) ? prev[qId] : [];
+            let nextVals;
+            if (checked) {
+                nextVals = [...new Set([...prevVals, optionId])];
+            } else {
+                nextVals = prevVals.filter((id) => id !== optionId);
+            }
+            return { ...prev, [qId]: nextVals };
+        });
+    };
+
+    const handleSubmit = async (e) => {
         e.preventDefault();
         if (!form) return;
 
+        // opcjonalny respondent
         let respondentId = null;
         if (respondentEmail) {
             try {
                 const rRes = await api.post("/respondents", {
                     email: respondentEmail,
-                    gdpr_consent: true
+                    gdpr_consent: true,
                 });
                 respondentId = rRes.data.id;
             } catch (err) {
@@ -37,24 +54,55 @@ export default function PublicForm() {
             }
         }
 
-        const answersList = form.questions.map(q => {
+        // budujemy listę odpowiedzi zgodnie z backendem (AnswerCreate)
+        const answersList = form.questions.flatMap((q) => {
             const val = answersMap[q.id];
-            if (!val) return null;
 
-            const answerObj = { question_id: q.id };
-
-            if (["short_text", "long_text"].includes(q.ans_kind)) {
-                answerObj.value_text = val;
-            } else if (["single_choice", "multiple_choice"].includes(q.ans_kind)) {
-                answerObj.value_option_id = parseInt(val);
+            // nic nie wpisane / zaznaczone
+            if (
+                val == null ||
+                val === "" ||
+                (Array.isArray(val) && val.length === 0)
+            ) {
+                return [];
             }
-            return answerObj;
-        }).filter(a => a !== null);
+
+            // odpowiedzi tekstowe
+            if (["short_text", "long_text"].includes(q.ans_kind)) {
+                return [
+                    {
+                        question_id: q.id,
+                        answer_text: val,
+                    },
+                ];
+            }
+
+            // jedna odpowiedź
+            if (q.ans_kind === "single_choice") {
+                return [
+                    {
+                        question_id: q.id,
+                        option_id: parseInt(val, 10),
+                    },
+                ];
+            }
+
+            // wiele odpowiedzi – osobny rekord dla każdej opcji
+            if (q.ans_kind === "multiple_choice") {
+                const arr = Array.isArray(val) ? val : [val];
+                return arr.map((optId) => ({
+                    question_id: q.id,
+                    option_id: parseInt(optId, 10),
+                }));
+            }
+
+            return [];
+        });
 
         const payload = {
             form_id: form.id,
             respondent_id: respondentId,
-            answers: answersList
+            answers: answersList,
         };
 
         try {
@@ -64,7 +112,7 @@ export default function PublicForm() {
             console.error(err);
             alert("Wystąpił błąd podczas wysyłania ankiety.");
         }
-    }
+    };
 
     if (submitted) {
         return (
@@ -75,68 +123,120 @@ export default function PublicForm() {
         );
     }
 
-    if (!form) return <div style={{ padding: 20 }}>Ładowanie ankiety...</div>;
+    if (!form) {
+        return <div style={{ padding: 20 }}>Ładowanie ankiety...</div>;
+    }
 
     return (
         <div style={{ padding: 20, maxWidth: 600, margin: "0 auto" }}>
             <h1>{form.title}</h1>
-            <form onSubmit={submit}>
-                <div style={{ marginBottom: 20, padding: 15, background: "#f8f9fa", borderRadius: 8 }}>
-                    <label style={{ display:"block", marginBottom: 5 }}>Twój e-mail (opcjonalnie):</label>
+
+            <form onSubmit={handleSubmit}>
+                {/* E-mail respondenta (opcjonalny) */}
+                <div
+                    style={{
+                        marginBottom: 20,
+                        padding: 15,
+                        background: "#f8f9fa",
+                        borderRadius: 8,
+                    }}
+                >
+                    <label
+                        style={{
+                            display: "block",
+                            marginBottom: 5,
+                        }}
+                    >
+                        Twój e-mail (opcjonalnie):
+                    </label>
                     <input
                         type="email"
                         value={respondentEmail}
-                        onChange={e=>setRespondentEmail(e.target.value)}
+                        onChange={(e) => setRespondentEmail(e.target.value)}
                         style={{ width: "100%", padding: 8 }}
                         placeholder="name@example.com"
                     />
-                    <small style={{ color: "#666" }}>Podanie e-maila oznacza zgodę na przetwarzanie danych (RODO).</small>
+                    <small style={{ color: "#666" }}>
+                        Podanie e-maila oznacza zgodę na przetwarzanie danych
+                        (RODO).
+                    </small>
                 </div>
 
                 {form.questions.map((q, idx) => (
                     <div key={q.id} style={{ marginBottom: 25 }}>
-                        <p style={{ fontWeight: "bold", marginBottom: 10 }}>
-                            {idx + 1}. {q.question_text} {q.is_required && <span style={{color:"red"}}>*</span>}
+                        <p
+                            style={{
+                                fontWeight: "bold",
+                                marginBottom: 10,
+                            }}
+                        >
+                            {idx + 1}. {q.question_text}{" "}
+                            {q.is_required && (
+                                <span style={{ color: "red" }}>*</span>
+                            )}
                         </p>
 
+                        {/* pytania tekstowe */}
                         {["short_text", "long_text"].includes(q.ans_kind) && (
                             <input
                                 type="text"
                                 required={q.is_required}
-                                onChange={e => handleAnswerChange(q.id, e.target.value)}
+                                onChange={(e) =>
+                                    handleAnswerChange(q.id, e.target.value)
+                                }
                                 style={{ width: "100%", padding: 8 }}
                             />
                         )}
 
-                        {q.ans_kind === "single_choice" && q.options.map(opt => (
-                            <div key={opt.id} style={{ marginBottom: 5 }}>
-                                <label>
-                                    <input
-                                        type="radio"
-                                        name={`q_${q.id}`} // Poprawione backticki
-                                        value={opt.id}
-                                        required={q.is_required}
-                                        onChange={(e) => handleAnswerChange(q.id, e.target.value)}
-                                    />
-                                    {" "}{opt.option_text}
-                                </label>
-                            </div>
-                        ))}
+                        {/* single_choice */}
+                        {q.ans_kind === "single_choice" &&
+                            q.options.map((opt) => (
+                                <div key={opt.id} style={{ marginBottom: 5 }}>
+                                    <label>
+                                        <input
+                                            type="radio"
+                                            name={`q_${q.id}`}
+                                            value={opt.id}
+                                            required={q.is_required}
+                                            onChange={(e) =>
+                                                handleAnswerChange(
+                                                    q.id,
+                                                    e.target.value
+                                                )
+                                            }
+                                        />{" "}
+                                        {opt.option_text}
+                                    </label>
+                                </div>
+                            ))}
 
+                        {/* multiple_choice */}
                         {q.ans_kind === "multiple_choice" && (
                             <div>
-                                <p style={{ fontSize: "0.8em", fontStyle: "italic" }}>(Wybierz jedną opcję)</p>
-                                {q.options.map(opt => (
+                                <p
+                                    style={{
+                                        fontSize: "0.8em",
+                                        fontStyle: "italic",
+                                    }}
+                                >
+                                    (Możesz wybrać kilka odpowiedzi)
+                                </p>
+                                {q.options.map((opt) => (
                                     <div key={opt.id}>
                                         <label>
                                             <input
-                                                type="radio"
-                                                name={`q_${q.id}`}
+                                                type="checkbox"
+                                                name={`q_${q.id}_${opt.id}`}
                                                 value={opt.id}
-                                                required={q.is_required}
-                                                onChange={(e) => handleAnswerChange(q.id, e.target.value)}
-                                            />
-                                            {" "}{opt.option_text}
+                                                onChange={(e) =>
+                                                    handleMultipleChoiceChange(
+                                                        q.id,
+                                                        opt.id,
+                                                        e.target.checked
+                                                    )
+                                                }
+                                            />{" "}
+                                            {opt.option_text}
                                         </label>
                                     </div>
                                 ))}
@@ -147,7 +247,15 @@ export default function PublicForm() {
 
                 <button
                     type="submit"
-                    style={{ padding: "10px 20px", fontSize: "1.1em", cursor: "pointer", background: "#007bff", color: "white", border: "none", borderRadius: 5 }}
+                    style={{
+                        padding: "10px 20px",
+                        fontSize: "1.1em",
+                        cursor: "pointer",
+                        background: "#007bff",
+                        color: "white",
+                        border: "none",
+                        borderRadius: 5,
+                    }}
                 >
                     Wyślij zgłoszenie
                 </button>

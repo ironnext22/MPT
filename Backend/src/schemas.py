@@ -79,8 +79,8 @@ class FormRead(SQLModel):
 
 class AnswerCreate(SQLModel):
     question_id: int
-    value_text: Optional[str] = None
-    value_option_id: Optional[int] = None
+    answer_text: Optional[str] = None
+    option_id: Optional[int] = None
 
 
 class SubmissionCreate(SQLModel):
@@ -93,8 +93,8 @@ class SubmissionCreate(SQLModel):
 class AnswerRead(SQLModel):
     id: int
     question_id: int
-    value_text: Optional[str]
-    value_option_id: Optional[int]
+    answer_text: Optional[str]
+    option_id: Optional[int]
     created_at: datetime
 
     class Config:
