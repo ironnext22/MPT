@@ -19,7 +19,7 @@ export default function PublicForm() {
                     "Błąd",
                     "Link do ankiety jest nieprawidłowy lub wygasł.")
             );
-    }, [token,modal]);
+    }, [token, modal]);
 
     // tekst + single_choice (jedna wartość)
     const handleAnswerChange = (qId, value) => {

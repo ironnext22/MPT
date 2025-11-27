@@ -27,7 +27,7 @@ export default function SubmissionsList() {
                 modal.showModal("Błąd", "Nie udało się załadować wyników ankiety.");
                 nav("/dashboard");
             });
-    }, [id, nav,modal]);
+    }, [id, nav, modal]);
 
     if (loading) return <div style={{ padding: 20 }}>Ładowanie wyników...</div>;
 

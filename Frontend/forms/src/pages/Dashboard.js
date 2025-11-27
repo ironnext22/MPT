@@ -44,7 +44,7 @@ export default function Dashboard() {
         }
     }
 
-    useEffect(() => { load(); }, [modal,load]);
+    useEffect(() => { load(); }, [modal]);
 
     // 2. AKCJA: Przejdź do wypełniania
     async function handleFillForm(formId) {

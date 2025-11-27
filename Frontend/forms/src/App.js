@@ -10,8 +10,8 @@ import SubmissionsList from "./pages/SubmissionsList";
 import Home from "./pages/Home";
 import { AuthContext } from "./contexts/AuthContext";
 import AppModal from "./components/AppModal";
+import Profile from "./pages/Profile";
 
-// KONTEKST MODALA – żeby móc go wywoływać z innych komponentów
 export const ModalContext = createContext({
     showModal: () => {},
     closeModal: () => {},
@@ -65,9 +65,15 @@ export default function App() {
                             Home
                         </Link>
                         {token && (
-                            <Link to="/dashboard" style={{ marginRight: 10 }}>
-                                Dashboard
-                            </Link>
+                            <>
+                                <Link to="/dashboard" style={{ marginRight: 10 }}>
+                                    Dashboard
+                                </Link>
+                                {/* Link do profilu – tylko dla zalogowanego */}
+                                <Link to="/profile" style={{ marginRight: 10 }}>
+                                    Profil
+                                </Link>
+                            </>
                         )}
                     </div>
 
@@ -115,6 +121,14 @@ export default function App() {
                         element={
                             <PrivateRoute>
                                 <SubmissionsList />
+                            </PrivateRoute>
+                        }
+                    />
+                    <Route
+                        path="/profile"
+                        element={
+                            <PrivateRoute>
+                                <Profile />
                             </PrivateRoute>
                         }
                     />
