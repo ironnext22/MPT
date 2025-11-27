@@ -1,5 +1,6 @@
-import React, { useContext } from "react";
-import { Routes, Route, Link, Navigate, useNavigate } from "react-router-dom"; // dodano useNavigate
+// src/App.js
+import React, { useContext, useState, createContext } from "react";
+import { Routes, Route, Link, Navigate } from "react-router-dom";
 import Login from "./pages/Login";
 import Register from "./pages/Register";
 import Dashboard from "./pages/Dashboard";
@@ -8,6 +9,13 @@ import PublicForm from "./pages/PublicForm";
 import SubmissionsList from "./pages/SubmissionsList";
 import Home from "./pages/Home";
 import { AuthContext } from "./contexts/AuthContext";
+import AppModal from "./components/AppModal";
+
+// KONTEKST MODALA – żeby móc go wywoływać z innych komponentów
+export const ModalContext = createContext({
+    showModal: () => {},
+    closeModal: () => {},
+});
 
 function PrivateRoute({ children }) {
     const { token } = useContext(AuthContext);
@@ -16,73 +24,113 @@ function PrivateRoute({ children }) {
 
 export default function App() {
     const { token, setToken } = useContext(AuthContext);
-    // useNavigate nie może być użyty bezpośrednio w App, jeśli App jest wewnątrz BrowserRouter,
-    // ale tutaj App jest dzieckiem BrowserRouter w index.js, więc zadziała.
-    // Jeśli jednak App zawiera BrowserRouter, to hook musi być niżej.
-    // Zakładając strukturę z index.js:
+
+    // STAN MODALA
+    const [modalState, setModalState] = useState({
+        open: false,
+        title: "",
+        message: "",
+    });
+
+    const showModal = (title, message) => {
+        setModalState({
+            open: true,
+            title,
+            message,
+        });
+    };
+
+    const closeModal = () => {
+        setModalState((prev) => ({ ...prev, open: false }));
+    };
 
     function handleLogout() {
         setToken(null);
-        // localStorage.removeItem("token"); // To robi AuthContext w useEffect, ale można dodać dla pewności
-        window.location.href = "/login"; // Proste przekierowanie
+        window.location.href = "/login";
     }
 
     return (
-        <div>
-            <nav style={{ padding: 10, borderBottom: "1px solid #ddd", display: "flex", justifyContent: "space-between" }}>
-                <div>
-                    <Link to="/" style={{ marginRight: 10 }}>Home</Link>
-                    {token && <Link to="/dashboard" style={{ marginRight: 10 }}>Dashboard</Link>}
-                </div>
+        <ModalContext.Provider value={{ showModal, closeModal }}>
+            <div>
+                <nav
+                    style={{
+                        padding: 10,
+                        borderBottom: "1px solid #ddd",
+                        display: "flex",
+                        justifyContent: "space-between",
+                    }}
+                >
+                    <div>
+                        <Link to="/" style={{ marginRight: 10 }}>
+                            Home
+                        </Link>
+                        {token && (
+                            <Link to="/dashboard" style={{ marginRight: 10 }}>
+                                Dashboard
+                            </Link>
+                        )}
+                    </div>
 
-                <div>
-                    {!token ? (
-                        <>
-                            <Link to="/login" style={{ marginRight: 10 }}>Logowanie</Link>
-                            <Link to="/register">Rejestracja</Link>
-                        </>
-                    ) : (
-                        <button onClick={handleLogout} style={{ cursor: "pointer" }}>
-                            Wyloguj
-                        </button>
-                    )}
-                </div>
-            </nav>
+                    <div>
+                        {!token ? (
+                            <>
+                                <Link to="/login" style={{ marginRight: 10 }}>
+                                    Logowanie
+                                </Link>
+                                <Link to="/register">Rejestracja</Link>
+                            </>
+                        ) : (
+                            <button onClick={handleLogout} style={{ cursor: "pointer" }}>
+                                Wyloguj
+                            </button>
+                        )}
+                    </div>
+                </nav>
 
-            <Routes>
-                <Route path="/" element={<Home />} />
-                <Route path="/login" element={<Login />} />
-                <Route path="/register" element={<Register />} />
+                <Routes>
+                    <Route path="/" element={<Home />} />
+                    <Route path="/login" element={<Login />} />
+                    <Route path="/register" element={<Register />} />
 
-                <Route
-                    path="/dashboard"
-                    element={
-                        <PrivateRoute>
-                            <Dashboard />
-                        </PrivateRoute>
-                    }
-                />
+                    <Route
+                        path="/dashboard"
+                        element={
+                            <PrivateRoute>
+                                <Dashboard />
+                            </PrivateRoute>
+                        }
+                    />
 
-                <Route
-                    path="/forms/new"
-                    element={
-                        <PrivateRoute>
-                            <FormBuilder />
-                        </PrivateRoute>
-                    }
-                />
+                    <Route
+                        path="/forms/new"
+                        element={
+                            <PrivateRoute>
+                                <FormBuilder />
+                            </PrivateRoute>
+                        }
+                    />
 
-                <Route
-                    path="/forms/:id/submissions"
-                    element={
-                        <PrivateRoute>
-                            <SubmissionsList />
-                        </PrivateRoute>
-                    }
-                />
+                    <Route
+                        path="/forms/:id/submissions"
+                        element={
+                            <PrivateRoute>
+                                <SubmissionsList />
+                            </PrivateRoute>
+                        }
+                    />
 
-                <Route path="/forms/public/:token" element={<PublicForm />} />
-            </Routes>
-        </div>
+                    <Route path="/forms/public/:token" element={<PublicForm />} />
+                </Routes>
+
+                {/* GLOBALNY MODAL – zawsze na końcu, nad całą aplikacją */}
+                <AppModal
+                    open={modalState.open}
+                    title={modalState.title}
+                    onClose={closeModal}
+                >
+                    {modalState.message}
+                </AppModal>
+            </div>
+        </ModalContext.Provider>
     );
 }

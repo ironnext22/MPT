@@ -1,10 +1,12 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useState, useContext } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import api from "../api";
+import { ModalContext } from "../App";
 
 export default function SubmissionsList() {
     const { id } = useParams(); // to jest form_id
     const nav = useNavigate();
+    const modal = useContext(ModalContext);
 
     const [submissions, setSubmissions] = useState([]);
     const [formInfo, setFormInfo] = useState(null);
@@ -22,10 +24,10 @@ export default function SubmissionsList() {
             })
             .catch((err) => {
                 console.error(err);
-                alert("Błąd ładowania wyników");
+                modal.showModal("Błąd", "Nie udało się załadować wyników ankiety.");
                 nav("/dashboard");
             });
-    }, [id, nav]);
+    }, [id, nav,modal]);
 
     if (loading) return <div style={{ padding: 20 }}>Ładowanie wyników...</div>;
 

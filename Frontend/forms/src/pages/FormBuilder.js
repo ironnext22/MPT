@@ -1,7 +1,8 @@
 // src/pages/FormBuilder.js
-import React, { useState } from "react";
+import React, { useState, useContext } from "react";
 import api from "../api";
 import { useNavigate } from "react-router-dom";
+import { ModalContext } from "../App";
 
 export default function FormBuilder() {
     const [title, setTitle] = useState("");
@@ -9,6 +10,7 @@ export default function FormBuilder() {
         { question_text: "", ans_kind: "short_text", is_required: true, position: 0, options: [] }
     ]);
     const nav = useNavigate();
+    const modal = useContext(ModalContext);
 
     function addQuestion() {
         setQuestions(qs => [...qs, { question_text: "", ans_kind: "short_text", is_required: true, position: qs.length, options: [] }]);
@@ -26,11 +28,11 @@ export default function FormBuilder() {
         e.preventDefault();
         try {
             await api.post("/forms", { title, questions });
-            alert("Utworzono formularz");
+            modal.showModal("Sukces", "Utworzono formularz.");
             nav("/dashboard");
         } catch (err) {
             console.error(err);
-            alert("Błąd tworzenia formularza");
+            modal.showModal("Błąd", "Błąd tworzenia formularza.");
         }
     }
 

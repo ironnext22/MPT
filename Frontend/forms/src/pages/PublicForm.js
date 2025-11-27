@@ -1,6 +1,7 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useState, useContext } from "react";
 import { useParams } from "react-router-dom";
 import api from "../api";
+import { ModalContext } from "../App";
 
 export default function PublicForm() {
     const { token } = useParams();
@@ -8,14 +9,17 @@ export default function PublicForm() {
     const [submitted, setSubmitted] = useState(false);
     const [respondentEmail, setRespondentEmail] = useState("");
     const [answersMap, setAnswersMap] = useState({});
+    const modal = useContext(ModalContext);
 
     useEffect(() => {
         api.get(`/forms/public/${token}`)
             .then((res) => setForm(res.data))
             .catch(() =>
-                alert("Błąd: link do ankiety jest nieprawidłowy lub wygasł.")
+                modal.showModal(
+                    "Błąd",
+                    "Link do ankiety jest nieprawidłowy lub wygasł.")
             );
-    }, [token]);
+    }, [token,modal]);
 
     // tekst + single_choice (jedna wartość)
     const handleAnswerChange = (qId, value) => {
@@ -110,7 +114,10 @@ export default function PublicForm() {
             setSubmitted(true);
         } catch (err) {
             console.error(err);
-            alert("Wystąpił błąd podczas wysyłania ankiety.");
+            modal.showModal(
+                "Błąd",
+                "Wystąpił błąd podczas wysyłania ankiety."
+            );
         }
     };
 
