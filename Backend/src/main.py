@@ -1,5 +1,7 @@
 import asyncio
 import time
+import os
+from dotenv import load_dotenv
 from datetime import datetime, timedelta
 from typing import AsyncGenerator, Optional, List
 
@@ -32,7 +34,18 @@ from .schemas import (
 
 from .forms_links import (create_forms_token, decode_forms_token, generate_qr_code)
 
-DATABASE_URL = "postgresql+asyncpg://mpt_user:mpt_pass@db:5432/mpt_db"
+
+load_dotenv()
+
+DB_USER = os.getenv("DB_USER")
+DB_PASSWORD = os.getenv("DB_PASSWORD")
+DB_HOST = os.getenv("DB_HOST")
+DB_PORT = os.getenv("DB_PORT")
+DB_NAME = os.getenv("DB_NAME")
+
+DATABASE_URL = (
+    f"postgresql+asyncpg://{DB_USER}:{DB_PASSWORD}@{DB_HOST}:{DB_PORT}/{DB_NAME}"
+)
 
 SECRET_KEY = "ZMIEN_TO_NA_SEKRETNY_KLUCZ"
 ALGORITHM = "HS256"
