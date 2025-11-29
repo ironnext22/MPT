@@ -74,6 +74,8 @@ async def wait_for_postgres(timeout: int = 30):
     while True:
         try:
             engine = create_async_engine(DATABASE_URL, echo=True, future=True)
+            async with engine.connect() as conn:
+                await conn.execute(text("SELECT 1"))
             return engine
         except Exception as e:
             if time.time() - start > timeout:
