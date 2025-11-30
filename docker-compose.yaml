@@ -71,20 +71,20 @@ services:
             - "3000:3000"
         command: ["/bin/bash", "-c", "npm run start"]
 
-    # frontend_tests:
-    #     build:
-    #         context: .
-    #         dockerfile: Frontend/tests/Dockerfile
-    #     image: frontend_tests:latest
-    #     container_name: frontend_tests
-    #     depends_on:
-    #         - frontend
-    #     working_dir: /tests
-    #     environment:
-    #         - DISPLAY=${DISPLAY}
-    #     volumes:
-    #         - /tmp/.X11-unix:/tmp/.X11-unix
-    #     command: ["pytest", "-v", "start.py"]
+    frontend_tests:
+        build:
+            context: .
+            dockerfile: Frontend/tests/Dockerfile
+        image: frontend_tests:latest
+        container_name: frontend_tests
+        depends_on:
+            - frontend
+        working_dir: /tests
+        environment:
+            - DISPLAY=${DISPLAY}
+        volumes:
+            - /tmp/.X11-unix:/tmp/.X11-unix
+        command: ["pytest", "-v", "start.py"]
 
 
 volumes:
