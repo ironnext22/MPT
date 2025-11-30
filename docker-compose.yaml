@@ -67,6 +67,8 @@ services:
         depends_on:
             - frontend_builder
         working_dir: /app
+        environment:
+            - REACT_APP_API_URL=${REACT_APP_API_URL:-http://localhost:8000}
         ports:
             - "3000:3000"
         command: ["/bin/bash", "-c", "npm run start"]
