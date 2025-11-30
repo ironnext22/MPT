@@ -86,7 +86,7 @@ services:
             - DISPLAY=${DISPLAY}
         volumes:
             - /tmp/.X11-unix:/tmp/.X11-unix
-        command: ["pytest", "-v", "start.py"]
+        command: ["pytest", "-v", "test_frontend.py"]
 
 
 volumes:
