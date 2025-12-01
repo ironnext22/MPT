@@ -18,19 +18,21 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 from passlib.context import CryptContext
 from jose import jwt, JWTError
 
-from .models import (
-    User, Form, Question, Option,
-    Answer, Submission, Respondent
-)
+from .models import User, Form, Question, Option, Answer, Submission, Respondent
 
 from .schemas import (
-    UserCreate, UserRead, Token,
-    FormCreate, FormRead,
-    SubmissionCreate, SubmissionRead,
-    RespondentCreate, RespondentRead
+    UserCreate,
+    UserRead,
+    Token,
+    FormCreate,
+    FormRead,
+    SubmissionCreate,
+    SubmissionRead,
+    RespondentCreate,
+    RespondentRead,
 )
 
-from .forms_links import (create_forms_token, decode_forms_token, generate_qr_code)
+from .forms_links import create_forms_token, decode_forms_token, generate_qr_code
 
 DATABASE_URL = "postgresql+asyncpg://mpt_user:mpt_pass@db:5432/mpt_db"
 
@@ -85,10 +87,7 @@ async def wait_for_redis(timeout: int = 30):
 async def startup_event():
     global pg_pool, redis_client, SessionLocal
 
-    pg_pool, redis_client = await asyncio.gather(
-        wait_for_postgres(),
-        wait_for_redis()
-    )
+    pg_pool, redis_client = await asyncio.gather(wait_for_postgres(), wait_for_redis())
 
     SessionLocal = sessionmaker(
         bind=pg_pool,
@@ -115,9 +114,9 @@ def verify_password(password: str, hashed: str):
 
 def create_access_token(data: dict, expires_delta: Optional[timedelta] = None):
     to_encode = data.copy()
-    expire = datetime.utcnow() + (expires_delta or timedelta(
-        minutes=ACCESS_TOKEN_EXPIRE_MINUTES
-    ))
+    expire = datetime.utcnow() + (
+        expires_delta or timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
+    )
     to_encode.update({"exp": expire})
     return jwt.encode(to_encode, SECRET_KEY, algorithm=ALGORITHM)
 
@@ -254,9 +253,7 @@ async def create_form(
     result = await session.exec(
         select(Form)
         .where(Form.id == form.id)
-        .options(
-            selectinload(Form.questions).selectinload(Question.options)
-        )
+        .options(selectinload(Form.questions).selectinload(Question.options))
     )
     form_db = result.one()
 
@@ -278,9 +275,7 @@ async def list_forms(
     stmt = (
         select(Form)
         .where(Form.creator_id == user.id)
-        .options(
-            selectinload(Form.questions).selectinload(Question.options)
-        )
+        .options(selectinload(Form.questions).selectinload(Question.options))
     )
     result = await session.exec(stmt)
     forms = result.unique().all()
@@ -300,9 +295,7 @@ async def get_form(
     result = await session.exec(
         select(Form)
         .where(Form.id == form.id)
-        .options(
-            selectinload(Form.questions).selectinload(Question.options)
-        )
+        .options(selectinload(Form.questions).selectinload(Question.options))
     )
     form_db = result.one()
 
@@ -397,12 +390,13 @@ async def get_submissions(
 
     return [SubmissionRead.model_validate(s) for s in submissions]
 
+
 @app.post("/forms/{forms_id}/link")
 async def create_forms_link(
     forms_id: int,
     request: Request,
     user: User = Depends(get_current_user),
-    session: AsyncSession = Depends(get_session)
+    session: AsyncSession = Depends(get_session),
 ):
     form = await session.get(Form, forms_id)
     if not form:
@@ -433,6 +427,7 @@ async def create_forms_link(
         "qr_code": qr_code,
     }
 
+
 @app.get("/forms/public/{token}", response_model=FormRead, name="get_form_by_token")
 async def get_form_by_token(
     token: str,
@@ -453,10 +448,122 @@ async def get_form_by_token(
     result = await session.exec(
         select(Form)
         .where(Form.id == form.id)
-        .options(
-            selectinload(Form.questions).selectinload(Question.options)
-        )
+        .options(selectinload(Form.questions).selectinload(Question.options))
     )
     form_db = result.one()
 
     return FormRead.model_validate(form_db)
+
+
+from sqlalchemy import func
+
+
+@app.get("/forms/{form_id}/stats")
+async def get_form_stats(
+    form_id: int,
+    user: User = Depends(get_current_user),
+    session: AsyncSession = Depends(get_session),
+):
+    form = await session.get(Form, form_id)
+    if not form:
+        raise HTTPException(404, "Form not found")
+    if form.creator_id != user.id:
+        raise HTTPException(403, "Not authorized")
+
+    total_submissions = await session.exec(
+        select(func.count(Submission.id)).where(Submission.form_id == form_id)
+    )
+    total_submissions = total_submissions.one()
+
+    unique_respondents = await session.exec(
+        select(func.count(func.distinct(Submission.respondent_id))).where(
+            Submission.form_id == form_id
+        )
+    )
+    unique_respondents = unique_respondents.one()
+
+    avg_duration = await session.exec(
+        select(
+            func.avg(
+                func.extract("epoch", Submission.submitted_at - Submission.started_at)
+            )
+        ).where(Submission.form_id == form_id)
+    )
+    avg_duration = avg_duration.one()
+
+    result = await session.exec(
+        select(Question)
+        .where(Question.form_id == form_id)
+        .options(selectinload(Question.options))
+    )
+    questions = result.all()
+
+    question_stats = []
+    for q in questions:
+        stats = await compute_question_stats(q, session)
+        question_stats.append(stats)
+
+    return {
+        "form_id": form_id,
+        "submissions": total_submissions,
+        "unique_respondents": unique_respondents,
+        "avg_duration_seconds": avg_duration,
+        "questions": question_stats,
+    }
+
+
+@app.get("/forms/{form_id}/stats/questions/{question_id}")
+async def get_question_stats(
+    form_id: int,
+    question_id: int,
+    user: User = Depends(get_current_user),
+    session: AsyncSession = Depends(get_session),
+):
+    form = await session.get(Form, form_id)
+    if not form:
+        raise HTTPException(404, "Form not found")
+    if form.creator_id != user.id:
+        raise HTTPException(403, "Not authorized")
+
+    question = await session.get(Question, question_id)
+    if not question:
+        raise HTTPException(404, "Question not found")
+    if question.form_id != form_id:
+        raise HTTPException(400, "Question does not belong to this form")
+
+    stats = await compute_question_stats(question, session)
+    return stats
+
+
+async def compute_question_stats(question: Question, session: AsyncSession):
+    total_answers = await session.exec(
+        select(func.count(Answer.id)).where(Answer.question_id == question.id)
+    )
+    total_answers = total_answers.one()
+
+    result = {
+        "question_id": question.id,
+        "text": question.question_text,
+        "ans_kind": question.ans_kind,
+        "total_answers": total_answers,
+    }
+
+    if question.ans_kind in ("single_choice", "multiple_choice"):
+        option_counts = {}
+        for opt in question.options:
+            count = await session.exec(
+                select(func.count(Answer.id)).where(Answer.option_id == opt.id)
+            )
+            option_counts[opt.option_text] = count.one()
+
+        result["options"] = option_counts
+
+    else:
+        texts = await session.exec(
+            select(Answer.answer_text)
+            .where(Answer.question_id == question.id)
+            .limit(20)
+        )
+        result["sample_texts"] = [t for (t,) in texts.all()]
+
+    return result
