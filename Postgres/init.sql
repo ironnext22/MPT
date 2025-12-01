@@ -15,7 +15,8 @@ CREATE TABLE forms.users (
     username citext NOT NULL UNIQUE CHECK ( length(username) BETWEEN 3 and 50),
     password text NOT NULL,
     email citext NOT NULL UNIQUE,
-    created_at timestamptz NOT NULL DEFAULT now()
+    created_at timestamptz NOT NULL DEFAULT now(),
+    avatar_url text
 );
 
 CREATE TABLE forms.forms (

@@ -1,5 +1,12 @@
-import React, { useContext, useMemo } from "react";
+import React, {
+    useContext,
+    useMemo,
+    useEffect,
+    useState,
+    useRef,
+} from "react";
 import { AuthContext } from "../contexts/AuthContext";
+import api from "../api";
 
 function parseJwt(token) {
     if (!token) return null;
@@ -17,6 +24,10 @@ function parseJwt(token) {
 export default function Profile() {
     const { token } = useContext(AuthContext);
 
+    const [profile, setProfile] = useState(null);
+    const fileInputRef = useRef(null);
+
+    // dane wyciągane z JWT – używane jako fallback
     const userInfo = useMemo(() => {
         if (!token) return null;
         const payload = parseJwt(token) || {};
@@ -27,30 +38,107 @@ export default function Profile() {
             payload.sub ||
             "użytkownik";
 
-        const email =
-            payload.email || "brak";
+        const email = payload.email || "brak";
 
         return {
             username,
             email,
-            displayName: username, // teraz = login, później osobne pole w bazie
+            displayName: username,
         };
     }, [token]);
 
-    const initials =
-        (userInfo?.displayName || "U")
-            .split(" ")
-            .map((p) => p[0])
-            .join("")
-            .toUpperCase()
-            .slice(0, 2);
+    // pobieramy pełny profil z backendu
+    useEffect(() => {
+        if (!token) {
+            setProfile(null);
+            return;
+        }
 
-    const maskedPassword = "********"; // placeholder
+        api
+            .get("/me", {
+                headers: {
+                    Authorization: `Bearer ${token}`,
+                },
+            })
+            .then((res) => setProfile(res.data))
+            .catch((err) => {
+                console.error("Nie udało się pobrać profilu", err);
+                setProfile(null);
+            });
+    }, [token]);
+
+    const effectiveUsername =
+        profile?.username || userInfo?.username || "użytkownik";
+    const effectiveEmail = profile?.email || userInfo?.email || "brak";
+    const avatarUrl = profile?.avatar_url || null;
+
+    const initials = (effectiveUsername || "U")
+        .split(" ")
+        .map((p) => p[0])
+        .join("")
+        .toUpperCase()
+        .slice(0, 2);
+
+    const maskedPassword = "********"; // placeholder na hasło
+
+    const handleAvatarClick = () => {
+        if (fileInputRef.current) {
+            fileInputRef.current.click();
+        }
+    };
+
+    const handleAvatarFileChange = (event) => {
+        const file = event.target.files?.[0];
+        if (!file) return;
+
+        const reader = new FileReader();
+        reader.onloadend = () => {
+            const dataUrl = reader.result;
+
+            api
+                .patch(
+                    "/me/avatar",
+                    { avatar_url: dataUrl },
+                    {
+                        headers: {
+                            Authorization: `Bearer ${token}`,
+                        },
+                    }
+                )
+                .then((res) => {
+                    setProfile(res.data);
+                })
+                .catch((err) => {
+                    console.error("Nie udało się zaktualizować avatara", err);
+                });
+        };
+        reader.readAsDataURL(file);
+    };
+
+    // na razie tylko placeholdery – potem można podpiąć modale / formularze
+    const handleChangeLogin = () => {
+        alert("Zmiana loginu: TODO – do podpięcia z backendem.");
+    };
+
+    const handleChangeEmail = () => {
+        alert("Zmiana e-maila: TODO – do podpięcia z backendem.");
+    };
+
+    const handleChangePassword = () => {
+        alert("Zmiana hasła: TODO – do podpięcia z backendem.");
+    };
 
     return (
-        <div style={{ padding: 20, maxWidth: 700, margin: "0 auto" }}>
+        <div
+            style={{
+                padding: 20,
+                maxWidth: 700,
+                margin: "40px auto",
+            }}
+        >
             <h2>Profil użytkownika</h2>
 
+            {/* Górna karta z avatarem */}
             <div
                 style={{
                     marginTop: 20,
@@ -63,7 +151,7 @@ export default function Profile() {
                     background: "#f9f9f9",
                 }}
             >
-                {/* Placeholder dla awatara */}
+                {/* Avatar */}
                 <div
                     style={{
                         width: 90,
@@ -77,91 +165,127 @@ export default function Profile() {
                         fontWeight: "bold",
                         color: "#555",
                         flexShrink: 0,
+                        cursor: "pointer",
+                        overflow: "hidden",
                     }}
+                    onClick={handleAvatarClick}
+                    title="Kliknij, aby zmienić awatar"
                 >
-                    {initials}
+                    {avatarUrl ? (
+                        <img
+                            src={avatarUrl}
+                            alt="Awatar"
+                            style={{
+                                width: "100%",
+                                height: "100%",
+                                objectFit: "cover",
+                            }}
+                        />
+                    ) : (
+                        initials
+                    )}
                 </div>
 
-                {/* Informacje o użytkowniku + przyciski obok */}
-                <div style={{ flex: 1 }}>
-                    {/* Wyświetlana nazwa */}
-                    <div style={{ marginBottom: 14 }}>
-                        <div style={{ fontWeight: "bold" }}>
-                            Wyświetlana nazwa:
-                        </div>
-                        <div>{userInfo?.displayName || "—"}</div>
+                <div style={{ flex: 1, minWidth: 0 }}>
+                    <div
+                        style={{
+                            fontSize: 18,
+                            fontWeight: 600,
+                            marginBottom: 4,
+                        }}
+                    >
+                        {effectiveUsername}
+                    </div>
+                    <div
+                        style={{
+                            fontSize: 14,
+                            color: "#666",
+                            marginBottom: 8,
+                            wordBreak: "break-all",
+                        }}
+                    >
+                        {effectiveEmail}
                     </div>
 
-                    {/* Login + przycisk zmiany */}
-                    <div style={rowStyle}>
-                        <div>
-                            <strong>Login:</strong>{" "}
-                            {userInfo?.username || "—"}
-                        </div>
-                        <button
-                            type="button"
-                            style={btnInlineStyle}
-                            onClick={() => {
-                                // TODO: modal zmiany loginu
-                                console.log("TODO: zmiana loginu");
-                            }}
-                        >
-                            Zmień login
-                        </button>
-                    </div>
-
-                    {/* E-mail + przycisk zmiany */}
-                    <div style={rowStyle}>
-                        <div>
-                            <strong>E-mail:</strong>{" "}
-                            {userInfo?.email || "—"}
-                        </div>
-                        <button
-                            type="button"
-                            style={btnInlineStyle}
-                            onClick={() => {
-                                // TODO: modal zmiany e-maila
-                                console.log("TODO: zmiana e-maila");
-                            }}
-                        >
-                            Zmień e-mail
-                        </button>
-                    </div>
-
-                    {/* Hasło (zagwiazdkowane) + przycisk zmiany */}
-                    <div style={rowStyle}>
-                        <div>
-                            <strong>Hasło:</strong>{" "}
-                            <span>{maskedPassword}</span>
-                        </div>
-                        <button
-                            type="button"
-                            style={btnInlineStyle}
-                            onClick={() => {
-                                // TODO: modal zmiany hasła
-                                console.log("TODO: zmiana hasła");
-                            }}
-                        >
-                            Zmień hasło
-                        </button>
-                    </div>
+                    <button
+                        type="button"
+                        style={btnInlineStyle}
+                        onClick={handleAvatarClick}
+                    >
+                        Zmień awatar
+                    </button>
                 </div>
             </div>
 
-            <div style={{ marginTop: 20, fontSize: 12, color: "#777" }}>
-                Uwaga: akcje zmiany loginu, e-maila i hasła są na razie
-                placeholderami – zostaną podpięte do API i własnych popupów,
-                gdy backend będzie gotowy.
+            {/* Szczegółowe dane + przyciski */}
+            <div
+                style={{
+                    marginTop: 24,
+                    padding: 20,
+                    borderRadius: 8,
+                    border: "1px solid #ddd",
+                }}
+            >
+                {/* Login + przycisk zmiany */}
+                <div style={rowStyle}>
+                    <div>
+                        <strong>Login:</strong> {effectiveUsername}
+                    </div>
+                    <button
+                        type="button"
+                        style={btnInlineStyle}
+                        onClick={handleChangeLogin}
+                    >
+                        Zmień login
+                    </button>
+                </div>
+
+                {/* E-mail + przycisk zmiany */}
+                <div style={rowStyle}>
+                    <div>
+                        <strong>E-mail:</strong> {effectiveEmail}
+                    </div>
+                    <button
+                        type="button"
+                        style={btnInlineStyle}
+                        onClick={handleChangeEmail}
+                    >
+                        Zmień e-mail
+                    </button>
+                </div>
+
+                {/* Hasło + przycisk zmiany */}
+                <div style={rowStyle}>
+                    <div>
+                        <strong>Hasło:</strong> {maskedPassword}
+                    </div>
+                    <button
+                        type="button"
+                        style={btnInlineStyle}
+                        onClick={handleChangePassword}
+                    >
+                        Zmień hasło
+                    </button>
+                </div>
             </div>
+
+            {/* Ukryty input do wyboru pliku z avatarem */}
+            <input
+                type="file"
+                accept="image/*"
+                ref={fileInputRef}
+                style={{ display: "none" }}
+                onChange={handleAvatarFileChange}
+            />
         </div>
     );
 }
 
 const rowStyle = {
-    marginBottom: 8,
     display: "flex",
     justifyContent: "space-between",
     alignItems: "center",
+    marginBottom: 12,
     gap: 10,
 };
 

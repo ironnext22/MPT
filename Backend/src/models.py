@@ -15,6 +15,7 @@ class User(SQLModel, table=True):
     password: str
     email: str
     created_at: datetime
+    avatar_url: Optional[str] = None
 
     forms: list["Form"] = Relationship(back_populates="creator")
     submissions: list["Submission"] = Relationship(back_populates="respondent_user")

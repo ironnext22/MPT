@@ -27,7 +27,8 @@ from .schemas import (
     UserCreate, UserRead, Token,
     FormCreate, FormRead,
     SubmissionCreate, SubmissionRead,
-    RespondentCreate, RespondentRead
+    RespondentCreate, RespondentRead,
+    UserAvatarUpdate,
 )
 
 from .forms_links import (create_forms_token, decode_forms_token, generate_qr_code)
@@ -460,3 +461,17 @@ async def get_form_by_token(
     form_db = result.one()
 
     return FormRead.model_validate(form_db)
+
+
+@app.patch("/me/avatar", response_model=UserRead)
+async def update_avatar(
+    avatar_in: UserAvatarUpdate,
+    current_user: User = Depends(get_current_user),
+    session: AsyncSession = Depends(get_session),
+):
+    # avatar_url może być np. linkiem do CDN albo data:URL (base64)
+    current_user.avatar_url = avatar_in.avatar_url
+    session.add(current_user)
+    await session.commit()
+    await session.refresh(current_user)
+    return current_user

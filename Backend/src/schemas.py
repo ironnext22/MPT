@@ -15,6 +15,7 @@ class UserRead(SQLModel):
     username: str
     email: str
     created_at: datetime
+    avatar_url: Optional[str] = None
 
     class Config:
         from_attributes = True
@@ -131,3 +132,6 @@ class RespondentRead(SQLModel):
 
     class Config:
         from_attributes = True
+
+class UserAvatarUpdate(SQLModel):
+    avatar_url: str
