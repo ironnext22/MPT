@@ -28,7 +28,7 @@ from .schemas import (
     FormCreate, FormRead,
     SubmissionCreate, SubmissionRead,
     RespondentCreate, RespondentRead,
-    UserAvatarUpdate,
+    UserAvatarUpdate, UserUpdateUsername, UserUpdateEmail, UserUpdatePassword,
 )
 
 from .forms_links import (create_forms_token, decode_forms_token, generate_qr_code)
@@ -471,6 +471,59 @@ async def update_avatar(
 ):
     # avatar_url może być np. linkiem do CDN albo data:URL (base64)
     current_user.avatar_url = avatar_in.avatar_url
+    session.add(current_user)
+    await session.commit()
+    await session.refresh(current_user)
+    return current_user
+
+@app.patch("/me/username", response_model=UserRead)
+async def update_username(
+    data_in: UserUpdateUsername,
+    current_user: User = Depends(get_current_user),
+    session: AsyncSession = Depends(get_session),
+):
+    # sprawdzamy, czy login już istnieje
+    result = await session.exec(select(User).where(User.username == data_in.username))
+    existing = result.first()
+    if existing and existing.id != current_user.id:
+        raise HTTPException(status_code=400, detail="Username already exists")
+
+    current_user.username = data_in.username
+    session.add(current_user)
+    await session.commit()
+    await session.refresh(current_user)
+    return current_user
+
+
+@app.patch("/me/email", response_model=UserRead)
+async def update_email(
+    data_in: UserUpdateEmail,
+    current_user: User = Depends(get_current_user),
+    session: AsyncSession = Depends(get_session),
+):
+    # sprawdzamy, czy email już istnieje
+    result = await session.exec(select(User).where(User.email == data_in.email))
+    existing = result.first()
+    if existing and existing.id != current_user.id:
+        raise HTTPException(status_code=400, detail="Email already exists")
+
+    current_user.email = data_in.email
+    session.add(current_user)
+    await session.commit()
+    await session.refresh(current_user)
+    return current_user
+
+@app.patch("/me/password", response_model=UserRead)
+async def update_password(
+    data_in: UserUpdatePassword,
+    current_user: User = Depends(get_current_user),
+    session: AsyncSession = Depends(get_session),
+):
+    # verify_password i hash_password już masz w pliku
+    if not verify_password(data_in.current_password, current_user.password):
+        raise HTTPException(status_code=400, detail="Invalid current password")
+
+    current_user.password = hash_password(data_in.new_password)
     session.add(current_user)
     await session.commit()
     await session.refresh(current_user)

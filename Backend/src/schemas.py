@@ -135,3 +135,16 @@ class RespondentRead(SQLModel):
 
 class UserAvatarUpdate(SQLModel):
     avatar_url: str
+
+
+class UserUpdateUsername(SQLModel):
+    username: str
+
+
+class UserUpdateEmail(SQLModel):
+    email: str
+
+
+class UserUpdatePassword(SQLModel):
+    current_password: str
+    new_password: str

@@ -27,7 +27,17 @@ export default function Profile() {
     const [profile, setProfile] = useState(null);
     const fileInputRef = useRef(null);
 
-    // dane wyciągane z JWT – używane jako fallback
+    // stany edycji
+    const [editingUsername, setEditingUsername] = useState(false);
+    const [editingEmail, setEditingEmail] = useState(false);
+    const [editingPassword, setEditingPassword] = useState(false);
+
+    const [usernameInput, setUsernameInput] = useState("");
+    const [emailInput, setEmailInput] = useState("");
+    const [currentPasswordInput, setCurrentPasswordInput] = useState("");
+    const [newPasswordInput, setNewPasswordInput] = useState("");
+
+    // fallback z JWT
     const userInfo = useMemo(() => {
         if (!token) return null;
         const payload = parseJwt(token) || {};
@@ -47,7 +57,7 @@ export default function Profile() {
         };
     }, [token]);
 
-    // pobieramy pełny profil z backendu
+    // pobranie profilu z backendu
     useEffect(() => {
         if (!token) {
             setProfile(null);
@@ -60,7 +70,9 @@ export default function Profile() {
                     Authorization: `Bearer ${token}`,
                 },
             })
-            .then((res) => setProfile(res.data))
+            .then((res) => {
+                setProfile(res.data);
+            })
             .catch((err) => {
                 console.error("Nie udało się pobrać profilu", err);
                 setProfile(null);
@@ -79,7 +91,9 @@ export default function Profile() {
         .toUpperCase()
         .slice(0, 2);
 
-    const maskedPassword = "********"; // placeholder na hasło
+    const maskedPassword = "********";
+
+    // avatar
 
     const handleAvatarClick = () => {
         if (fileInputRef.current) {
@@ -110,23 +124,140 @@ export default function Profile() {
                 })
                 .catch((err) => {
                     console.error("Nie udało się zaktualizować avatara", err);
+                    alert(
+                        err.response?.data?.detail ||
+                        "Nie udało się zaktualizować avatara."
+                    );
                 });
         };
         reader.readAsDataURL(file);
     };
 
-    // na razie tylko placeholdery – potem można podpiąć modale / formularze
-    const handleChangeLogin = () => {
-        alert("Zmiana loginu: TODO – do podpięcia z backendem.");
+    // LOGIN
+
+    const startEditUsername = () => {
+        setUsernameInput(effectiveUsername);
+        setEditingUsername(true);
     };
 
-    const handleChangeEmail = () => {
-        alert("Zmiana e-maila: TODO – do podpięcia z backendem.");
+    const cancelEditUsername = () => {
+        setEditingUsername(false);
+        setUsernameInput("");
     };
 
-    const handleChangePassword = () => {
-        alert("Zmiana hasła: TODO – do podpięcia z backendem.");
+    const saveUsername = () => {
+        api
+            .patch(
+                "/me/username",
+                { username: usernameInput },
+                {
+                    headers: {
+                        Authorization: `Bearer ${token}`,
+                    },
+                }
+            )
+            .then((res) => {
+                setProfile(res.data);
+                setEditingUsername(false);
+                alert("Login został zaktualizowany.");
+            })
+            .catch((err) => {
+                console.error("Nie udało się zaktualizować loginu", err);
+                alert(
+                    err.response?.data?.detail ||
+                    "Nie udało się zaktualizować loginu."
+                );
+            });
     };
+
+    // EMAIL
+
+    const startEditEmail = () => {
+        setEmailInput(effectiveEmail === "brak" ? "" : effectiveEmail);
+        setEditingEmail(true);
+    };
+
+    const cancelEditEmail = () => {
+        setEditingEmail(false);
+        setEmailInput("");
+    };
+
+    const saveEmail = () => {
+        api
+            .patch(
+                "/me/email",
+                { email: emailInput },
+                {
+                    headers: {
+                        Authorization: `Bearer ${token}`,
+                    },
+                }
+            )
+            .then((res) => {
+                setProfile(res.data);
+                setEditingEmail(false);
+                alert("E-mail został zaktualizowany.");
+            })
+            .catch((err) => {
+                console.error("Nie udało się zaktualizować e-maila", err);
+                alert(
+                    err.response?.data?.detail ||
+                    "Nie udało się zaktualizować e-maila."
+                );
+            });
+    };
+
+    // HASŁO
+
+    const startEditPassword = () => {
+        setCurrentPasswordInput("");
+        setNewPasswordInput("");
+        setEditingPassword(true);
+    };
+
+    const cancelEditPassword = () => {
+        setEditingPassword(false);
+        setCurrentPasswordInput("");
+        setNewPasswordInput("");
+    };
+
+    const savePassword = () => {
+        api
+            .patch(
+                "/me/password",
+                {
+                    current_password: currentPasswordInput,
+                    new_password: newPasswordInput,
+                },
+                {
+                    headers: {
+                        Authorization: `Bearer ${token}`,
+                    },
+                }
+            )
+            .then((res) => {
+                setProfile(res.data);
+                setEditingPassword(false);
+                setCurrentPasswordInput("");
+                setNewPasswordInput("");
+                alert("Hasło zostało zaktualizowane.");
+            })
+            .catch((err) => {
+                console.error("Nie udało się zaktualizować hasła", err);
+                alert(
+                    err.response?.data?.detail ||
+                    "Nie udało się zaktualizować hasła."
+                );
+            });
+    };
+
+    if (!token) {
+        return (
+            <div style={{ padding: 20 }}>
+                Musisz być zalogowany, aby zobaczyć profil.
+            </div>
+        );
+    }
 
     return (
         <div
@@ -217,7 +348,7 @@ export default function Profile() {
                 </div>
             </div>
 
-            {/* Szczegółowe dane + przyciski */}
+            {/* Dane + edycja */}
             <div
                 style={{
                     marginTop: 24,
@@ -226,50 +357,180 @@ export default function Profile() {
                     border: "1px solid #ddd",
                 }}
             >
-                {/* Login + przycisk zmiany */}
+                {/* LOGIN */}
                 <div style={rowStyle}>
                     <div>
-                        <strong>Login:</strong> {effectiveUsername}
+                        <strong>Login:</strong>{" "}
+                        {editingUsername ? (
+                            <input
+                                type="text"
+                                value={usernameInput}
+                                onChange={(e) =>
+                                    setUsernameInput(e.target.value)
+                                }
+                                style={{ marginLeft: 8, padding: 4 }}
+                            />
+                        ) : (
+                            effectiveUsername
+                        )}
                     </div>
-                    <button
-                        type="button"
-                        style={btnInlineStyle}
-                        onClick={handleChangeLogin}
-                    >
-                        Zmień login
-                    </button>
+                    <div>
+                        {editingUsername ? (
+                            <>
+                                <button
+                                    type="button"
+                                    style={{
+                                        ...btnInlineStyle,
+                                        marginRight: 8,
+                                    }}
+                                    onClick={saveUsername}
+                                >
+                                    Zapisz
+                                </button>
+                                <button
+                                    type="button"
+                                    style={btnInlineStyleSecondary}
+                                    onClick={cancelEditUsername}
+                                >
+                                    Anuluj
+                                </button>
+                            </>
+                        ) : (
+                            <button
+                                type="button"
+                                style={btnInlineStyle}
+                                onClick={startEditUsername}
+                            >
+                                Zmień login
+                            </button>
+                        )}
+                    </div>
                 </div>
 
-                {/* E-mail + przycisk zmiany */}
+                {/* EMAIL */}
                 <div style={rowStyle}>
                     <div>
-                        <strong>E-mail:</strong> {effectiveEmail}
+                        <strong>E-mail:</strong>{" "}
+                        {editingEmail ? (
+                            <input
+                                type="email"
+                                value={emailInput}
+                                onChange={(e) =>
+                                    setEmailInput(e.target.value)
+                                }
+                                style={{ marginLeft: 8, padding: 4 }}
+                            />
+                        ) : (
+                            effectiveEmail
+                        )}
                     </div>
-                    <button
-                        type="button"
-                        style={btnInlineStyle}
-                        onClick={handleChangeEmail}
-                    >
-                        Zmień e-mail
-                    </button>
+                    <div>
+                        {editingEmail ? (
+                            <>
+                                <button
+                                    type="button"
+                                    style={{
+                                        ...btnInlineStyle,
+                                        marginRight: 8,
+                                    }}
+                                    onClick={saveEmail}
+                                >
+                                    Zapisz
+                                </button>
+                                <button
+                                    type="button"
+                                    style={btnInlineStyleSecondary}
+                                    onClick={cancelEditEmail}
+                                >
+                                    Anuluj
+                                </button>
+                            </>
+                        ) : (
+                            <button
+                                type="button"
+                                style={btnInlineStyle}
+                                onClick={startEditEmail}
+                            >
+                                Zmień e-mail
+                            </button>
+                        )}
+                    </div>
                 </div>
 
-                {/* Hasło + przycisk zmiany */}
+                {/* HASŁO */}
                 <div style={rowStyle}>
                     <div>
                         <strong>Hasło:</strong> {maskedPassword}
+                        {editingPassword && (
+                            <div style={{ marginTop: 8 }}>
+                                <div style={{ marginBottom: 6 }}>
+                                    <label>
+                                        Obecne hasło:{" "}
+                                        <input
+                                            type="password"
+                                            value={currentPasswordInput}
+                                            onChange={(e) =>
+                                                setCurrentPasswordInput(
+                                                    e.target.value
+                                                )
+                                            }
+                                            style={{ padding: 4 }}
+                                        />
+                                    </label>
+                                </div>
+                                <div>
+                                    <label>
+                                        Nowe hasło:{" "}
+                                        <input
+                                            type="password"
+                                            value={newPasswordInput}
+                                            onChange={(e) =>
+                                                setNewPasswordInput(
+                                                    e.target.value
+                                                )
+                                            }
+                                            style={{ padding: 4 }}
+                                        />
+                                    </label>
+                                </div>
+                            </div>
+                        )}
                     </div>
-                    <button
-                        type="button"
-                        style={btnInlineStyle}
-                        onClick={handleChangePassword}
-                    >
-                        Zmień hasło
-                    </button>
+                    <div>
+                        {editingPassword ? (
+                            <>
+                                <button
+                                    type="button"
+                                    style={{
+                                        ...btnInlineStyle,
+                                        marginRight: 8,
+                                    }}
+                                    onClick={savePassword}
+                                >
+                                    Zapisz
+                                </button>
+                                <button
+                                    type="button"
+                                    style={btnInlineStyleSecondary}
+                                    onClick={cancelEditPassword}
+                                >
+                                    Anuluj
+                                </button>
+                            </>
+                        ) : (
+                            <button
+                                type="button"
+                                style={btnInlineStyle}
+                                onClick={startEditPassword}
+                            >
+                                Zmień hasło
+                            </button>
+                        )}
+                    </div>
                 </div>
             </div>
 
-            {/* Ukryty input do wyboru pliku z avatarem */}
+            {/* input do wyboru pliku z avatarem */}
             <input
                 type="file"
                 accept="image/*"
@@ -299,4 +560,9 @@ const btnInlineStyle = {
     fontSize: 13,
     color: "#fff",
     whiteSpace: "nowrap",
+};
+
+const btnInlineStyleSecondary = {
+    ...btnInlineStyle,
+    background: "#6c757d",
 };
