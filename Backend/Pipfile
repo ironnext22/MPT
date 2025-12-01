@@ -21,6 +21,7 @@ pydantic-settings = "*"
 typing-extensions = "*"
 setuptools = "*"
 qrcode = {extras = ["pil"], version = "*"}
+python-dotenv = "*"
 
 [dev-packages]
 black = "*"
