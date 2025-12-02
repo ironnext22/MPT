@@ -9,6 +9,7 @@ import PublicForm from "./pages/PublicForm";
 import SubmissionsList from "./pages/SubmissionsList";
 import Home from "./pages/Home";
 import Profile from "./pages/Profile";
+import Contact from "./pages/Contact"; // <--- NOWE
 import { AuthContext } from "./contexts/AuthContext";
 import AppModal from "./components/AppModal";
 import api from "./api";
@@ -88,9 +89,10 @@ export default function App() {
     };
 
     const navLinkStyle = {
-        marginRight: 10,
+        marginRight: 12,
         textDecoration: "none",
-        color: "#fff",
+        color: "#e5e7eb",
+        fontSize: 14,
     };
 
     return (
@@ -99,6 +101,9 @@ export default function App() {
                 style={{
                     fontFamily:
                         "system-ui, -apple-system, BlinkMacSystemFont, sans-serif",
+                    minHeight: "100vh",
+                    display: "flex",
+                    flexDirection: "column",
                 }}
             >
                 {/* NAVBAR */}
@@ -107,15 +112,27 @@ export default function App() {
                         display: "flex",
                         justifyContent: "space-between",
                         alignItems: "center",
-                        padding: "10px 16px",
+                        padding: "10px 24px",
+                        borderBottom: "1px solid #1f2937",
+                        position: "sticky",
+                        top: 0,
+                        zIndex: 20,
                     }}
                 >
                     <div>
                         <Link
                             to="/"
-                            style={{ ...navLinkStyle, fontWeight: 700 }}
+                            style={{
+                                ...navLinkStyle,
+                                fontWeight: 800,
+                                fontSize: 18,
+                                marginRight: 24,
+                            }}
                         >
                             MPT
+                        </Link>
+                        <Link to="/contact" style={navLinkStyle}>
+                            Kontakt
                         </Link>
                     </div>
 
@@ -162,14 +179,15 @@ export default function App() {
                                             width: 32,
                                             height: 32,
                                             borderRadius: "50%",
-                                            background: "#e0e0e0",
+                                            background: "#111827",
                                             display: "flex",
                                             alignItems: "center",
                                             justifyContent: "center",
                                             fontSize: 14,
                                             fontWeight: "bold",
-                                            color: "#555",
+                                            color: "#e5e7eb",
                                             overflow: "hidden",
+                                            border: "1px solid #1f2937",
                                         }}
                                     >
                                         {avatarUrl ? (
@@ -194,7 +212,7 @@ export default function App() {
                                         cursor: "pointer",
                                         border: "none",
                                         background: "transparent",
-                                        color: "#fff",
+                                        color: "#e5e7eb",
                                         fontSize: 14,
                                     }}
                                 >
@@ -206,7 +224,15 @@ export default function App() {
                 </nav>
 
                 {/* ROUTES */}
-                <div style={{ padding: 16 }}>
+                <main
+                    style={{
+                        flex: 1,
+                        padding: "24px 16px 32px",
+                        maxWidth: 960,
+                        width: "100%",
+                        margin: "0 auto",
+                    }}
+                >
                     <Routes>
                         <Route path="/" element={<Home />} />
                         <Route
@@ -279,12 +305,54 @@ export default function App() {
                                 </ProtectedRoute>
                             }
                         />
+                        <Route path="/contact" element={<Contact />} />
                         <Route
                             path="*"
                             element={<Navigate to="/" replace />}
                         />
                     </Routes>
-                </div>
+                </main>
+
+                {/* FOOTER */}
+                <footer
+                    style={{
+                        padding: "16px 24px",
+                        borderTop: "1px solid #1f2937",
+                        fontSize: 12,
+                        display: "flex",
+                        justifyContent: "space-between",
+                        alignItems: "center",
+                        gap: 16,
+                        flexWrap: "wrap",
+                    }}
+                >
+                    <div style={{ color: "#6b7280" }}>
+                        © {new Date().getFullYear()} MPT. Wszystkie prawa
+                        zastrzeżone.
+                    </div>
+                    <div
+                        style={{
+                            display: "flex",
+                            gap: 16,
+                            alignItems: "center",
+                        }}
+                    >
+                        <Link
+                            to="/contact"
+                            style={{
+                                textDecoration: "none",
+                                color: "#9ca3af",
+                                fontSize: 12,
+                            }}
+                        >
+                            Kontakt
+                        </Link>
+                        <span style={{ color: "#374151" }}>•</span>
+                        <span style={{ color: "#4b5563" }}>
+                            support@mpt.app
+                        </span>
+                    </div>
+                </footer>
 
                 {/* GLOBALNY MODAL */}
                 <AppModal
