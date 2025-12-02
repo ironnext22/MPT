@@ -1,3 +1,4 @@
+// src/pages/Contact.js
 import React from "react";
 
 export default function Contact() {
@@ -5,56 +6,92 @@ export default function Contact() {
         <div
             style={{
                 maxWidth: 600,
-                margin: "0 auto",
-                padding: "24px",
-                background: "#020617",
-                borderRadius: 16,
-                boxShadow: "0 10px 25px rgba(0,0,0,0.35)",
-                border: "1px solid #1f2937",
+                margin: "40px auto",
+                padding: 20,
+                borderRadius: 8,
+                border: "1px solid #ddd",
+                background: "#f9f9f9",
             }}
         >
             <h1
                 style={{
                     fontSize: 24,
                     marginBottom: 16,
-                    color: "#e5e7eb",
+                    color: "#111827",
                     fontWeight: 700,
                 }}
             >
                 Kontakt
             </h1>
 
-            <p style={{ marginBottom: 16, color: "#9ca3af" }}>
-                Masz pytania dotyczące aplikacji MPT? Napisz do nas – chętnie
-                pomożemy.
+            <p
+                style={{
+                    marginBottom: 20,
+                    fontSize: 15,
+                    color: "#374151",
+                }}
+            >
+                Masz pytania dotyczące aplikacji MPT? Napisz do nas – chętnie pomożemy.
             </p>
 
-            <div style={{ marginBottom: 12 }}>
-                <div style={{ fontSize: 14, color: "#6b7280" }}>E-mail</div>
+            <div style={{ marginBottom: 14 }}>
+                <div
+                    style={{
+                        fontSize: 13,
+                        color: "#6b7280",
+                        marginBottom: 2,
+                    }}
+                >
+                    E-mail
+                </div>
                 <a
                     href="mailto:support@mpt.app"
                     style={{
-                        color: "#38bdf8",
+                        color: "#2563eb",
                         textDecoration: "none",
-                        fontSize: 16,
+                        fontSize: 15,
                     }}
                 >
                     support@mpt.app
                 </a>
             </div>
 
-            <div style={{ marginBottom: 12 }}>
-                <div style={{ fontSize: 14, color: "#6b7280" }}>Telefon</div>
-                <div style={{ fontSize: 16, color: "#e5e7eb" }}>
+            <div style={{ marginBottom: 14 }}>
+                <div
+                    style={{
+                        fontSize: 13,
+                        color: "#6b7280",
+                        marginBottom: 2,
+                    }}
+                >
+                    Telefon
+                </div>
+                <div
+                    style={{
+                        fontSize: 15,
+                        color: "#111827",
+                    }}
+                >
                     +48 123 456 789
                 </div>
             </div>
 
             <div>
-                <div style={{ fontSize: 14, color: "#6b7280" }}>
+                <div
+                    style={{
+                        fontSize: 13,
+                        color: "#6b7280",
+                        marginBottom: 2,
+                    }}
+                >
                     Godziny wsparcia
                 </div>
-                <div style={{ fontSize: 16, color: "#e5e7eb" }}>
+                <div
+                    style={{
+                        fontSize: 15,
+                        color: "#111827",
+                    }}
+                >
                     Pon–Pt, 9:00–17:00
                 </div>
             </div>
