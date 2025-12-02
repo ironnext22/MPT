@@ -51,7 +51,7 @@ export default function Dashboard() {
         try {
             const res = await api.post(`/forms/${formId}/link`);
             const token = res.data.token;
-            nav(`/forms/public/${token}`);
+            nav(`/public/${token}`);
         } catch (err) {
             modal.showModal("Błąd","Nie udało się otworzyć ankiety");
         }
@@ -66,10 +66,10 @@ export default function Dashboard() {
     async function handleShare(formId) {
         try {
             const res = await api.post(`/forms/${formId}/link`);
-            const { share_link, qr_code, token } = res.data;
+            const { qr_code, token } = res.data;
 
-            // na wszelki wypadek fallback, gdyby share_link nie przyszedł
-            const fullLink = share_link || `${window.location.origin}/forms/public/${token}`;
+            // ZAWSZE budujemy poprawny link na froncie
+            const fullLink = `${window.location.origin}/public/${token}`;
 
             setShareData({
                 link: fullLink,
@@ -78,7 +78,7 @@ export default function Dashboard() {
             setShareModalOpen(true);
         } catch (err) {
             console.error(err);
-            modal.showModal("Błąd","Błąd generowania linku");
+            modal.showModal("Błąd", "Błąd generowania linku");
         }
     }
 
