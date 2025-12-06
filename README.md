@@ -47,4 +47,12 @@ $ xhost +local:docker
 ## Run frontend tests with playwright
 
 ```
-$ docker compose run frontend_tests
+$ docker compose --env-file .env.tests up
+$ docker compose --env-file .env.tests run frontend_tests
+```
+
+## Record test with playwright
+
+```
+$ docker compose --env-file .env.tests run frontend_tests playwright codegen http://frontend:3000/ --ignore-https-errors --viewport-size=1920,1080
+```
