@@ -3,18 +3,18 @@ import React, { useState, useContext } from "react";
 import api from "../api";
 import { AuthContext } from "../contexts/AuthContext";
 import { useNavigate, Link } from "react-router-dom";
+import { ModalContext } from "../App";
 
 export default function Login() {
     const [username, setUsername] = useState("");
     const [password, setPassword] = useState("");
     const { setToken } = useContext(AuthContext);
     const nav = useNavigate();
+    const modal = useContext(ModalContext);
 
     async function submit(e) {
         e.preventDefault();
 
-        // KLUCZOWA ZMIANA:
-        // FastAPI oczekuje danych jako formularz, nie JSON.
         const formData = new FormData();
         formData.append("username", username);
         formData.append("password", password);
@@ -26,7 +26,7 @@ export default function Login() {
             nav("/dashboard");
         } catch (err) {
             console.error(err);
-            alert("Błąd logowania. Sprawdź dane.");
+            modal.showModal("Błąd logowania", "Sprawdź nazwę użytkownika i hasło.");
         }
     }
 

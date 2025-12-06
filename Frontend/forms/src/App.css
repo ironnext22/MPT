@@ -1,4 +1,6 @@
 /* Globalne ustawienia */
+@tailwind utilities;
+
 * {
     box-sizing: border-box;
     margin: 0;

@@ -1,20 +1,22 @@
-import React, { useState } from "react";
+import React, { useState, useContext } from "react";
 import api from "../api";
 import { useNavigate } from "react-router-dom";
+import { ModalContext } from "../App";
 
 export default function Register() {
     const [formData, setFormData] = useState({ username: "", email: "", password: "" });
     const nav = useNavigate();
+    const modal = useContext(ModalContext);
 
     async function submit(e) {
         e.preventDefault();
         try {
             await api.post("/users", formData);
-            alert("Zarejestrowano pomyślnie! Możesz się zalogować.");
+            modal.showModal("Sukces", "Zarejestrowano pomyślnie! Możesz się zalogować.");
             nav("/login");
         } catch (err) {
             console.error(err);
-            alert("Błąd rejestracji (np. użytkownik już istnieje).");
+            modal.showModal("Błąd", "Błąd rejestracji (np. użytkownik już istnieje).");
         }
     }
 

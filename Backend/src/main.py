@@ -23,15 +23,11 @@ from jose import jwt, JWTError
 from .models import User, Form, Question, Option, Answer, Submission, Respondent
 
 from .schemas import (
-    UserCreate,
-    UserRead,
-    Token,
-    FormCreate,
-    FormRead,
-    SubmissionCreate,
-    SubmissionRead,
-    RespondentCreate,
-    RespondentRead,
+    UserCreate, UserRead, Token,
+    FormCreate, FormRead,
+    SubmissionCreate, SubmissionRead,
+    RespondentCreate, RespondentRead,
+    UserAvatarUpdate, UserUpdateUsername, UserUpdateEmail, UserUpdatePassword,
 )
 
 from .forms_links import create_forms_token, decode_forms_token, generate_qr_code
@@ -470,115 +466,68 @@ async def get_form_by_token(
     return FormRead.model_validate(form_db)
 
 
-from sqlalchemy import func
-
-
-@app.get("/forms/{form_id}/stats")
-async def get_form_stats(
-    form_id: int,
-    user: User = Depends(get_current_user),
+@app.patch("/me/avatar", response_model=UserRead)
+async def update_avatar(
+    avatar_in: UserAvatarUpdate,
+    current_user: User = Depends(get_current_user),
     session: AsyncSession = Depends(get_session),
 ):
-    form = await session.get(Form, form_id)
-    if not form:
-        raise HTTPException(404, "Form not found")
-    if form.creator_id != user.id:
-        raise HTTPException(403, "Not authorized")
+    # avatar_url może być np. linkiem do CDN albo data:URL (base64)
+    current_user.avatar_url = avatar_in.avatar_url
+    session.add(current_user)
+    await session.commit()
+    await session.refresh(current_user)
+    return current_user
 
-    total_submissions = await session.exec(
-        select(func.count(Submission.id)).where(Submission.form_id == form_id)
-    )
-    total_submissions = total_submissions.one()
-
-    unique_respondents = await session.exec(
-        select(func.count(func.distinct(Submission.respondent_id))).where(
-            Submission.form_id == form_id
-        )
-    )
-    unique_respondents = unique_respondents.one()
-
-    avg_duration = await session.exec(
-        select(
-            func.avg(
-                func.extract("epoch", Submission.submitted_at - Submission.started_at)
-            )
-        ).where(Submission.form_id == form_id)
-    )
-    avg_duration = avg_duration.one()
-
-    result = await session.exec(
-        select(Question)
-        .where(Question.form_id == form_id)
-        .options(selectinload(Question.options))
-    )
-    questions = result.all()
-
-    question_stats = []
-    for q in questions:
-        stats = await compute_question_stats(q, session)
-        question_stats.append(stats)
-
-    return {
-        "form_id": form_id,
-        "submissions": total_submissions,
-        "unique_respondents": unique_respondents,
-        "avg_duration_seconds": avg_duration,
-        "questions": question_stats,
-    }
-
-
-@app.get("/forms/{form_id}/stats/questions/{question_id}")
-async def get_question_stats(
-    form_id: int,
-    question_id: int,
-    user: User = Depends(get_current_user),
+@app.patch("/me/username", response_model=UserRead)
+async def update_username(
+    data_in: UserUpdateUsername,
+    current_user: User = Depends(get_current_user),
     session: AsyncSession = Depends(get_session),
 ):
-    form = await session.get(Form, form_id)
-    if not form:
-        raise HTTPException(404, "Form not found")
-    if form.creator_id != user.id:
-        raise HTTPException(403, "Not authorized")
+    # sprawdzamy, czy login już istnieje
+    result = await session.exec(select(User).where(User.username == data_in.username))
+    existing = result.first()
+    if existing and existing.id != current_user.id:
+        raise HTTPException(status_code=400, detail="Username already exists")
 
-    question = await session.get(Question, question_id)
-    if not question:
-        raise HTTPException(404, "Question not found")
-    if question.form_id != form_id:
-        raise HTTPException(400, "Question does not belong to this form")
-
-    stats = await compute_question_stats(question, session)
-    return stats
+    current_user.username = data_in.username
+    session.add(current_user)
+    await session.commit()
+    await session.refresh(current_user)
+    return current_user
 
 
-async def compute_question_stats(question: Question, session: AsyncSession):
-    total_answers = await session.exec(
-        select(func.count(Answer.id)).where(Answer.question_id == question.id)
-    )
-    total_answers = total_answers.one()
+@app.patch("/me/email", response_model=UserRead)
+async def update_email(
+    data_in: UserUpdateEmail,
+    current_user: User = Depends(get_current_user),
+    session: AsyncSession = Depends(get_session),
+):
+    # sprawdzamy, czy email już istnieje
+    result = await session.exec(select(User).where(User.email == data_in.email))
+    existing = result.first()
+    if existing and existing.id != current_user.id:
+        raise HTTPException(status_code=400, detail="Email already exists")
 
-    result = {
-        "question_id": question.id,
-        "text": question.question_text,
-        "ans_kind": question.ans_kind,
-        "total_answers": total_answers,
-    }
+    current_user.email = data_in.email
+    session.add(current_user)
+    await session.commit()
+    await session.refresh(current_user)
+    return current_user
 
-    if question.ans_kind in ("single_choice", "multiple_choice"):
-        option_counts = {}
-        for opt in question.options:
-            count = await session.exec(
-                select(func.count(Answer.id)).where(Answer.option_id == opt.id)
-            )
-            option_counts[opt.option_text] = count.one()
+@app.patch("/me/password", response_model=UserRead)
+async def update_password(
+    data_in: UserUpdatePassword,
+    current_user: User = Depends(get_current_user),
+    session: AsyncSession = Depends(get_session),
+):
+    # verify_password i hash_password już masz w pliku
+    if not verify_password(data_in.current_password, current_user.password):
+        raise HTTPException(status_code=400, detail="Invalid current password")
 
-        result["options"] = option_counts
-
-    else:
-        texts = await session.exec(
-            select(Answer.answer_text)
-            .where(Answer.question_id == question.id)
-            .limit(20)
-        )
-        result["sample_texts"] = [t for (t,) in texts.all()]
-
-    return result
+    current_user.password = hash_password(data_in.new_password)
+    session.add(current_user)
+    await session.commit()
+    await session.refresh(current_user)
+    return current_user

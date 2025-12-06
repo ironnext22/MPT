@@ -1,6 +1,7 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useState, useContext } from "react";
 import api from "../api";
 import { useNavigate } from "react-router-dom";
+import { ModalContext } from "../App";
 
 export default function Dashboard() {
     const [forms, setForms] = useState([]);
@@ -9,7 +10,7 @@ export default function Dashboard() {
 
     const [shareModalOpen, setShareModalOpen] = useState(false);
     const [shareData, setShareData] = useState({ link: "", qrCode: "" });
-
+    const modal = useContext(ModalContext);
     // 1. Pobieranie listy ankiet
     async function load() {
         setLoading(true);
@@ -35,7 +36,7 @@ export default function Dashboard() {
         } catch (err) {
             console.error("-> BŁĄD ŁADOWANIA ANKIET:", err);
             if (err.response && err.response.status === 401) {
-                alert("Sesja wygasła. Zaloguj się ponownie.");
+                modal.showModal("Błąd","Sesja wygasła. Zaloguj się ponownie.");
                 nav("/login");
             }
         } finally {
@@ -43,16 +44,16 @@ export default function Dashboard() {
         }
     }
 
-    useEffect(() => { load(); }, []);
+    useEffect(() => { load(); }, [modal]);
 
     // 2. AKCJA: Przejdź do wypełniania
     async function handleFillForm(formId) {
         try {
             const res = await api.post(`/forms/${formId}/link`);
             const token = res.data.token;
-            nav(`/forms/public/${token}`);
+            nav(`/public/${token}`);
         } catch (err) {
-            alert("Nie udało się otworzyć ankiety");
+            modal.showModal("Błąd","Nie udało się otworzyć ankiety");
         }
     }
 
@@ -65,10 +66,10 @@ export default function Dashboard() {
     async function handleShare(formId) {
         try {
             const res = await api.post(`/forms/${formId}/link`);
-            const { share_link, qr_code, token } = res.data;
+            const { qr_code, token } = res.data;
 
-            // na wszelki wypadek fallback, gdyby share_link nie przyszedł
-            const fullLink = share_link || `${window.location.origin}/forms/public/${token}`;
+            // ZAWSZE budujemy poprawny link na froncie
+            const fullLink = `${window.location.origin}/public/${token}`;
 
             setShareData({
                 link: fullLink,
@@ -77,17 +78,17 @@ export default function Dashboard() {
             setShareModalOpen(true);
         } catch (err) {
             console.error(err);
-            alert("Błąd generowania linku");
+            modal.showModal("Błąd", "Błąd generowania linku");
         }
     }
 
     async function handleCopyLink() {
         try {
             await navigator.clipboard.writeText(shareData.link);
-            alert("Link skopiowany do schowka ✅");
+            modal.showModal("Sukces", "Link skopiowany do schowka ✅");
         } catch (err) {
             console.error(err);
-            alert("Nie udało się skopiować linku. Skopiuj ręcznie.");
+            modal.showModal("Błąd", "Nie udało się skopiować linku. Skopiuj ręcznie.");
         }
     }
 
