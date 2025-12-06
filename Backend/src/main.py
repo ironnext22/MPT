@@ -1,5 +1,7 @@
 import asyncio
 import time
+import os
+from dotenv import load_dotenv
 from datetime import datetime, timedelta
 from typing import AsyncGenerator, Optional, List
 
@@ -18,10 +20,7 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 from passlib.context import CryptContext
 from jose import jwt, JWTError
 
-from .models import (
-    User, Form, Question, Option,
-    Answer, Submission, Respondent
-)
+from .models import User, Form, Question, Option, Answer, Submission, Respondent
 
 from .schemas import (
     UserCreate, UserRead, Token,
@@ -31,9 +30,20 @@ from .schemas import (
     UserAvatarUpdate, UserUpdateUsername, UserUpdateEmail, UserUpdatePassword,
 )
 
-from .forms_links import (create_forms_token, decode_forms_token, generate_qr_code)
+from .forms_links import create_forms_token, decode_forms_token, generate_qr_code
 
-DATABASE_URL = "postgresql+asyncpg://mpt_user:mpt_pass@db:5432/mpt_db"
+
+load_dotenv()
+
+DB_USER = os.getenv("DB_USER")
+DB_PASSWORD = os.getenv("DB_PASSWORD")
+DB_HOST = os.getenv("DB_HOST")
+DB_PORT = os.getenv("DB_PORT")
+DB_NAME = os.getenv("DB_NAME")
+
+DATABASE_URL = (
+    f"postgresql+asyncpg://{DB_USER}:{DB_PASSWORD}@{DB_HOST}:{DB_PORT}/{DB_NAME}"
+)
 
 SECRET_KEY = "ZMIEN_TO_NA_SEKRETNY_KLUCZ"
 ALGORITHM = "HS256"
@@ -62,6 +72,8 @@ async def wait_for_postgres(timeout: int = 30):
     while True:
         try:
             engine = create_async_engine(DATABASE_URL, echo=True, future=True)
+            async with engine.connect() as conn:
+                await conn.execute(text("SELECT 1"))
             return engine
         except Exception as e:
             if time.time() - start > timeout:
@@ -86,10 +98,7 @@ async def wait_for_redis(timeout: int = 30):
 async def startup_event():
     global pg_pool, redis_client, SessionLocal
 
-    pg_pool, redis_client = await asyncio.gather(
-        wait_for_postgres(),
-        wait_for_redis()
-    )
+    pg_pool, redis_client = await asyncio.gather(wait_for_postgres(), wait_for_redis())
 
     SessionLocal = sessionmaker(
         bind=pg_pool,
@@ -116,9 +125,9 @@ def verify_password(password: str, hashed: str):
 
 def create_access_token(data: dict, expires_delta: Optional[timedelta] = None):
     to_encode = data.copy()
-    expire = datetime.utcnow() + (expires_delta or timedelta(
-        minutes=ACCESS_TOKEN_EXPIRE_MINUTES
-    ))
+    expire = datetime.utcnow() + (
+        expires_delta or timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
+    )
     to_encode.update({"exp": expire})
     return jwt.encode(to_encode, SECRET_KEY, algorithm=ALGORITHM)
 
@@ -255,9 +264,7 @@ async def create_form(
     result = await session.exec(
         select(Form)
         .where(Form.id == form.id)
-        .options(
-            selectinload(Form.questions).selectinload(Question.options)
-        )
+        .options(selectinload(Form.questions).selectinload(Question.options))
     )
     form_db = result.one()
 
@@ -279,9 +286,7 @@ async def list_forms(
     stmt = (
         select(Form)
         .where(Form.creator_id == user.id)
-        .options(
-            selectinload(Form.questions).selectinload(Question.options)
-        )
+        .options(selectinload(Form.questions).selectinload(Question.options))
     )
     result = await session.exec(stmt)
     forms = result.unique().all()
@@ -301,9 +306,7 @@ async def get_form(
     result = await session.exec(
         select(Form)
         .where(Form.id == form.id)
-        .options(
-            selectinload(Form.questions).selectinload(Question.options)
-        )
+        .options(selectinload(Form.questions).selectinload(Question.options))
     )
     form_db = result.one()
 
@@ -398,12 +401,13 @@ async def get_submissions(
 
     return [SubmissionRead.model_validate(s) for s in submissions]
 
+
 @app.post("/forms/{forms_id}/link")
 async def create_forms_link(
     forms_id: int,
     request: Request,
     user: User = Depends(get_current_user),
-    session: AsyncSession = Depends(get_session)
+    session: AsyncSession = Depends(get_session),
 ):
     form = await session.get(Form, forms_id)
     if not form:
@@ -434,6 +438,7 @@ async def create_forms_link(
         "qr_code": qr_code,
     }
 
+
 @app.get("/forms/public/{token}", response_model=FormRead, name="get_form_by_token")
 async def get_form_by_token(
     token: str,
@@ -454,9 +459,7 @@ async def get_form_by_token(
     result = await session.exec(
         select(Form)
         .where(Form.id == form.id)
-        .options(
-            selectinload(Form.questions).selectinload(Question.options)
-        )
+        .options(selectinload(Form.questions).selectinload(Question.options))
     )
     form_db = result.one()
 

@@ -1,1 +1,3 @@
 Backend/src/__pycache__
+Backend/.env
+Postgres/.env
