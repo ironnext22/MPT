@@ -1,6 +1,12 @@
 // src/App.js
-import React, { useContext, useState, useEffect, createContext } from "react";
+import React, {
+    useContext,
+    useState,
+    useEffect,
+    createContext,
+} from "react";
 import { Routes, Route, Link, Navigate } from "react-router-dom";
+
 import Login from "./pages/Login";
 import Register from "./pages/Register";
 import Dashboard from "./pages/Dashboard";
@@ -9,7 +15,8 @@ import PublicForm from "./pages/PublicForm";
 import SubmissionsList from "./pages/SubmissionsList";
 import Home from "./pages/Home";
 import Profile from "./pages/Profile";
-import Contact from "./pages/Contact"; // <--- NOWE
+import Contact from "./pages/Contact";
+
 import { AuthContext } from "./contexts/AuthContext";
 import AppModal from "./components/AppModal";
 import api from "./api";
@@ -30,14 +37,14 @@ function ProtectedRoute({ children }) {
 export default function App() {
     const { token, setToken } = useContext(AuthContext);
 
-    // MODAL
+    /* ===================== MODAL ===================== */
     const [modalState, setModalState] = useState({
         open: false,
         title: "",
         message: "",
     });
 
-    // Avatar do navbaru
+    /* ===================== AVATAR ===================== */
     const [avatarUrl, setAvatarUrl] = useState(null);
     const [avatarInitials, setAvatarInitials] = useState("U");
 
@@ -48,10 +55,9 @@ export default function App() {
             return;
         }
 
-        api
-            .get("/me", {
-                headers: { Authorization: `Bearer ${token}` },
-            })
+        api.get("/me", {
+            headers: { Authorization: `Bearer ${token}` },
+        })
             .then((res) => {
                 const user = res.data;
                 setAvatarUrl(user.avatar_url || null);
@@ -63,15 +69,16 @@ export default function App() {
                     .join("")
                     .toUpperCase()
                     .slice(0, 2);
+
                 setAvatarInitials(initials);
             })
-            .catch((err) => {
-                console.error("Nie udało się pobrać profilu do navbaru", err);
+            .catch(() => {
                 setAvatarUrl(null);
                 setAvatarInitials("U");
             });
     }, [token]);
 
+    /* ===================== MODAL API ===================== */
     const showModal = (title, message) => {
         setModalState({
             open: true,
@@ -88,11 +95,39 @@ export default function App() {
         setToken(null);
     };
 
+    /* ===================== NAVBAR STYLES ===================== */
+    const navStyle = {
+        display: "flex",
+        justifyContent: "space-between",
+        alignItems: "center",
+        flexWrap: "wrap",
+        gap: 12,
+        padding: "10px 24px",
+        borderBottom: "1px solid #1f2937",
+        position: "sticky",
+        top: 0,
+        zIndex: 20,
+    };
+
+    const navLeftStyle = {
+        display: "flex",
+        alignItems: "center",
+        gap: 16,
+        minWidth: 0,
+    };
+
+    const navRightStyle = {
+        display: "flex",
+        alignItems: "center",
+        gap: 12,
+        flexShrink: 0,
+    };
+
     const navLinkStyle = {
-        marginRight: 12,
         textDecoration: "none",
         color: "#e5e7eb",
         fontSize: 14,
+        whiteSpace: "nowrap",
     };
 
     return (
@@ -106,42 +141,26 @@ export default function App() {
                     flexDirection: "column",
                 }}
             >
-                {/* NAVBAR */}
-                <nav
-                    style={{
-                        display: "flex",
-                        justifyContent: "space-between",
-                        alignItems: "center",
-                        padding: "10px 24px",
-                        borderBottom: "1px solid #1f2937",
-                        position: "sticky",
-                        top: 0,
-                        zIndex: 20,
-                    }}
-                >
-                    <div>
+                {/* ===================== NAVBAR ===================== */}
+                <nav style={navStyle}>
+                    <div style={navLeftStyle}>
                         <Link
                             to="/"
                             style={{
                                 ...navLinkStyle,
                                 fontWeight: 800,
                                 fontSize: 18,
-                                marginRight: 24,
                             }}
                         >
                             MPT
                         </Link>
+
                         <Link to="/contact" style={navLinkStyle}>
                             Kontakt
                         </Link>
                     </div>
 
-                    <div
-                        style={{
-                            display: "flex",
-                            alignItems: "center",
-                        }}
-                    >
+                    <div style={navRightStyle}>
                         {!token && (
                             <>
                                 <Link to="/login" style={navLinkStyle}>
@@ -162,17 +181,15 @@ export default function App() {
                                     Dashboard
                                 </Link>
 
-                                {/* Avatar jako link do profilu */}
                                 <Link
                                     to="/profile"
+                                    title="Profil"
                                     style={{
                                         display: "inline-flex",
                                         alignItems: "center",
                                         justifyContent: "center",
-                                        marginRight: 10,
                                         textDecoration: "none",
                                     }}
-                                    title="Profil"
                                 >
                                     <div
                                         style={{
@@ -214,6 +231,7 @@ export default function App() {
                                         background: "transparent",
                                         color: "#e5e7eb",
                                         fontSize: 14,
+                                        whiteSpace: "nowrap",
                                     }}
                                 >
                                     Wyloguj
@@ -223,7 +241,7 @@ export default function App() {
                     </div>
                 </nav>
 
-                {/* ROUTES */}
+                {/* ===================== ROUTES ===================== */}
                 <main
                     style={{
                         flex: 1,
@@ -305,7 +323,10 @@ export default function App() {
                                 </ProtectedRoute>
                             }
                         />
-                        <Route path="/contact" element={<Contact />} />
+                        <Route
+                            path="/contact"
+                            element={<Contact />}
+                        />
                         <Route
                             path="*"
                             element={<Navigate to="/" replace />}
@@ -313,7 +334,7 @@ export default function App() {
                     </Routes>
                 </main>
 
-                {/* FOOTER */}
+                {/* ===================== FOOTER ===================== */}
                 <footer
                     style={{
                         padding: "16px 24px",
@@ -327,8 +348,8 @@ export default function App() {
                     }}
                 >
                     <div style={{ color: "#6b7280" }}>
-                        © {new Date().getFullYear()} MPT. Wszystkie prawa
-                        zastrzeżone.
+                        © {new Date().getFullYear()} MPT. Wszystkie
+                        prawa zastrzeżone.
                     </div>
                     <div
                         style={{
@@ -347,14 +368,16 @@ export default function App() {
                         >
                             Kontakt
                         </Link>
-                        <span style={{ color: "#374151" }}>•</span>
+                        <span style={{ color: "#374151" }}>
+                            •
+                        </span>
                         <span style={{ color: "#4b5563" }}>
                             support@mpt.app
                         </span>
                     </div>
                 </footer>
 
-                {/* GLOBALNY MODAL */}
+                {/* ===================== GLOBAL MODAL ===================== */}
                 <AppModal
                     open={modalState.open}
                     title={modalState.title}
