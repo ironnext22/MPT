@@ -22,6 +22,7 @@ typing-extensions = "*"
 setuptools = "*"
 qrcode = {extras = ["pil"], version = "*"}
 python-dotenv = "*"
+aiosmtplib = "*"
 
 [dev-packages]
 black = "*"
