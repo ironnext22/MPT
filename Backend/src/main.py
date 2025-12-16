@@ -2,7 +2,7 @@ import asyncio
 import time
 import os
 from dotenv import load_dotenv
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from typing import AsyncGenerator, Optional, List
 
 import redis.asyncio as redis
@@ -13,7 +13,6 @@ from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
 from sqlalchemy import text
 from sqlalchemy.orm import sessionmaker, selectinload
 from sqlalchemy.ext.asyncio import AsyncEngine, create_async_engine
-from sqlalchemy import func
 
 from sqlmodel import SQLModel, select
 from sqlmodel.ext.asyncio.session import AsyncSession
@@ -24,17 +23,28 @@ from jose import jwt, JWTError
 from .models import User, Form, Question, Option, Answer, Submission, Respondent
 
 from .schemas import (
-    UserCreate, UserRead, Token,
-    FormCreate, FormRead,
-    SubmissionCreate, SubmissionRead,
-    RespondentCreate, RespondentRead,
-    UserAvatarUpdate, UserUpdateUsername, UserUpdateEmail, UserUpdatePassword,
+    UserCreate,
+    UserRead,
+    Token,
+    FormCreate,
+    FormRead,
+    SubmissionCreate,
+    SubmissionRead,
+    RespondentCreate,
+    RespondentRead,
+    UserAvatarUpdate,
+    UserUpdateUsername,
+    UserUpdateEmail,
+    UserUpdatePassword,
 )
 
 from .forms_links import create_forms_token, decode_forms_token, generate_qr_code
 
-import aiosmtplib
-from email.message import EmailMessage
+from .email_verification import (
+    generate_email_verification_token,
+    send_verification_email,
+)
+
 
 load_dotenv()
 
@@ -44,16 +54,11 @@ DB_HOST = os.getenv("DB_HOST")
 DB_PORT = os.getenv("DB_PORT")
 DB_NAME = os.getenv("DB_NAME")
 
-MAIL_HOST = os.getenv("MAIL_HOST")
-MAIL_PORT = int(os.getenv("MAIL_PORT", "587"))
-MAIL_USERNAME = os.getenv("MAIL_USERNAME")
-MAIL_PASSWORD = os.getenv("MAIL_PASSWORD")
-MAIL_FROM = os.getenv("MAIL_FROM")
-
-DATABASE_URL = f"postgresql+asyncpg://{DB_USER}:{DB_PASSWORD}@{DB_HOST}:{DB_PORT}/{DB_NAME}"
+DATABASE_URL = (
+    f"postgresql+asyncpg://{DB_USER}:{DB_PASSWORD}@{DB_HOST}:{DB_PORT}/{DB_NAME}"
+)
 
 SECRET_KEY = "ZMIEN_TO_NA_SEKRETNY_KLUCZ"
-CONFIRM_SECRET = "SUPER_TAJNY_KLUCZ_DO_EMAILI"
 ALGORITHM = "HS256"
 ACCESS_TOKEN_EXPIRE_MINUTES = 60
 
@@ -75,30 +80,8 @@ pg_pool: AsyncEngine | None = None
 SessionLocal: sessionmaker | None = None
 
 
-async def send_email(to: str, subject: str, text: str):
-    msg = EmailMessage()
-    msg["From"] = MAIL_FROM
-    msg["To"] = to
-    msg["Subject"] = subject
-    msg.set_content(text)
-
-    await aiosmtplib.send(
-        msg,
-        hostname=MAIL_HOST,
-        port=MAIL_PORT,
-        username=MAIL_USERNAME,
-        password=MAIL_PASSWORD,
-        start_tls=True,
-    )
-
-
-def create_confirmation_token(email: str):
-    expire = datetime.utcnow() + timedelta(hours=24)
-    return jwt.encode({"sub": email, "exp": expire}, CONFIRM_SECRET, algorithm=ALGORITHM)
-
-
-def verify_confirmation_token(token: str):
-    return jwt.decode(token, CONFIRM_SECRET, algorithms=[ALGORITHM])
+def utcnow():
+    return datetime.now(timezone.utc)
 
 
 async def wait_for_postgres(timeout: int = 30):
@@ -159,7 +142,7 @@ def verify_password(password: str, hashed: str):
 
 def create_access_token(data: dict, expires_delta: Optional[timedelta] = None):
     to_encode = data.copy()
-    expire = datetime.utcnow() + (
+    expire = utcnow() + (
         expires_delta or timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
     )
     to_encode.update({"exp": expire})
@@ -214,65 +197,87 @@ async def check_connections():
 @app.post("/users", response_model=UserRead)
 async def register_user(
     user_in: UserCreate,
-    request: Request,
     session: AsyncSession = Depends(get_session),
 ):
-    result = await session.exec(select(User).where(User.username == user_in.username))
-    existing = result.first()
-    if existing:
-        raise HTTPException(400, "Username already exists")
-
     result = await session.exec(select(User).where(User.email == user_in.email))
-    existing_mail = result.first()
-    if existing_mail:
-        raise HTTPException(400, "Email already exists")
+    if result.first():
+        raise HTTPException(status_code=400, detail="Email already exists")
+
+    result = await session.exec(select(User).where(User.username == user_in.username))
+    if result.first():
+        raise HTTPException(status_code=400, detail="Username already exists")
+
+    token = generate_email_verification_token()
 
     user = User(
         username=user_in.username,
-        password=hash_password(user_in.password),
         email=user_in.email,
-        created_at=datetime.utcnow(),
-        is_confirmed=False,
+        password=hash_password(user_in.password),
+        created_at=utcnow(),
+        is_email_verified=False,
+        email_verification_token=token,
+        email_verification_expires=utcnow() + timedelta(hours=24),
     )
 
     session.add(user)
     await session.commit()
-    await session.refresh(user)
 
-    token = create_confirmation_token(user.email)
-    confirm_link = f"{request.base_url}users/confirm/{token}"
-
-    await send_email(
-        user.email,
-        "Potwierdzenie konta",
-        f"Kliknij aby aktywować konto:\n{confirm_link}"
-    )
+    try:
+        send_verification_email(user.email, token)
+    except Exception as e:
+        print("EMAIL ERROR:", e)
 
     return user
 
 
-@app.get("/users/confirm/{token}")
-async def confirm_user(token: str, session: AsyncSession = Depends(get_session)):
-    try:
-        payload = verify_confirmation_token(token)
-    except Exception:
-        raise HTTPException(400, "Invalid or expired token")
+@app.get("/verify-email")
+async def verify_email(token: str, session: AsyncSession = Depends(get_session)):
+    result = await session.exec(
+        select(User).where(User.email_verification_token == token)
+    )
+    user = result.first()
 
-    email = payload["sub"]
+    if not user:
+        raise HTTPException(400, "Invalid token")
+
+    if user.email_verification_expires < utcnow():
+        raise HTTPException(400, "Token expired")
+
+    user.is_email_verified = True
+    user.email_verification_token = None
+    user.email_verification_expires = None
+
+    session.add(user)
+    await session.commit()
+
+    return {"message": "Email verified successfully"}
+
+
+@app.post("/resend-verification")
+async def resend_verification_email(
+    email: str,
+    session: AsyncSession = Depends(get_session),
+):
     result = await session.exec(select(User).where(User.email == email))
     user = result.first()
 
     if not user:
-        raise HTTPException(404, "User not found")
+        return {"message": "If the email exists, a verification email was sent"}
 
-    if user.is_confirmed:
-        return {"message": "Already confirmed"}
+    if user.is_email_verified:
+        raise HTTPException(status_code=400, detail="Email is already verified")
 
-    user.is_confirmed = True
+    token = generate_email_verification_token()
+
+    user.email_verification_token = token
+    user.email_verification_expires = utcnow() + timedelta(hours=24)
+
     session.add(user)
     await session.commit()
 
-    return {"message": "Email confirmed"}
+    send_verification_email(user.email, token)
+
+    return {"message": "Verification email sent"}
 
 
 @app.post("/token", response_model=Token)
@@ -286,8 +291,8 @@ async def login(
     if not user or not verify_password(form_data.password, user.password):
         raise HTTPException(401, "Incorrect username or password")
 
-    if not user.is_confirmed:
-        raise HTTPException(403, "Account not confirmed")
+    if not user.is_email_verified:
+        raise HTTPException(403, "Email not verified")
 
     token = create_access_token({"sub": user.username})
     return Token(access_token=token)
@@ -307,7 +312,7 @@ async def create_form(
     form = Form(
         creator_id=user.id,
         title=form_in.title,
-        created_at=datetime.utcnow(),
+        created_at=utcnow(),
     )
     session.add(form)
     await session.flush()
@@ -319,7 +324,7 @@ async def create_form(
             ans_kind=q.ans_kind,
             is_required=q.is_required,
             position=q.position,
-            created_at=datetime.utcnow(),
+            created_at=utcnow(),
         )
         session.add(question)
         await session.flush()
@@ -330,13 +335,15 @@ async def create_form(
                 option_text=o.option_text,
                 is_correct=o.is_correct,
                 position=o.position,
-                created_at=datetime.utcnow(),
+                created_at=utcnow(),
             )
             session.add(option)
 
     await session.commit()
     await session.refresh(form)
-
+    #
+    # for q in form.questions:
+    #     _ = q.options
     result = await session.exec(
         select(Form)
         .where(Form.id == form.id)
@@ -352,6 +359,13 @@ async def list_forms(
     user: User = Depends(get_current_user),
     session: AsyncSession = Depends(get_session),
 ):
+    result = await session.exec(select(Form).where(Form.creator_id == user.id))
+    forms = result.all()
+
+    # for f in forms:
+    #     for q in f.questions:
+    #         _ = q.options
+
     stmt = (
         select(Form)
         .where(Form.creator_id == user.id)
@@ -392,7 +406,7 @@ async def create_respondent(
         name=r_in.name,
         locale=r_in.locale,
         gdpr_consent=r_in.gdpr_consent,
-        created_at=datetime.utcnow(),
+        created_at=utcnow(),
     )
     session.add(r)
     await session.commit()
@@ -413,8 +427,8 @@ async def create_submission(
         form_id=form.id,
         respondent_id=sub_in.respondent_id,
         respondent_user_id=sub_in.respondent_user_id,
-        started_at=datetime.utcnow(),
-        submitted_at=datetime.utcnow(),
+        started_at=utcnow(),
+        submitted_at=utcnow(),
     )
     session.add(submission)
     await session.flush()
@@ -427,7 +441,7 @@ async def create_submission(
             question_id=a.question_id,
             answer_text=a.answer_text,
             option_id=a.option_id,
-            created_at=datetime.utcnow(),
+            created_at=utcnow(),
         )
         session.add(answer)
 
@@ -456,6 +470,9 @@ async def get_submissions(
 
     if form.creator_id != user.id:
         raise HTTPException(403, "Not authorized")
+
+    result = await session.exec(select(Submission).where(Submission.form_id == form_id))
+    submissions = result.all()
 
     stmt = (
         select(Submission)
@@ -538,6 +555,7 @@ async def update_avatar(
     current_user: User = Depends(get_current_user),
     session: AsyncSession = Depends(get_session),
 ):
+    # avatar_url może być np. linkiem do CDN albo data:URL (base64)
     current_user.avatar_url = avatar_in.avatar_url
     session.add(current_user)
     await session.commit()
@@ -551,6 +569,7 @@ async def update_username(
     current_user: User = Depends(get_current_user),
     session: AsyncSession = Depends(get_session),
 ):
+    # sprawdzamy, czy login już istnieje
     result = await session.exec(select(User).where(User.username == data_in.username))
     existing = result.first()
     if existing and existing.id != current_user.id:
@@ -569,6 +588,7 @@ async def update_email(
     current_user: User = Depends(get_current_user),
     session: AsyncSession = Depends(get_session),
 ):
+    # sprawdzamy, czy email już istnieje
     result = await session.exec(select(User).where(User.email == data_in.email))
     existing = result.first()
     if existing and existing.id != current_user.id:
@@ -587,6 +607,7 @@ async def update_password(
     current_user: User = Depends(get_current_user),
     session: AsyncSession = Depends(get_session),
 ):
+    # verify_password i hash_password już masz w pliku
     if not verify_password(data_in.current_password, current_user.password):
         raise HTTPException(status_code=400, detail="Invalid current password")
 
@@ -615,8 +636,9 @@ async def get_form_stats(
     total_submissions = total_submissions.one()
 
     unique_respondents = await session.exec(
-        select(func.count(func.distinct(Submission.respondent_id)))
-        .where(Submission.form_id == form_id)
+        select(func.count(func.distinct(Submission.respondent_id))).where(
+            Submission.form_id == form_id
+        )
     )
     unique_respondents = unique_respondents.one()
 
