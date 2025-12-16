@@ -2,7 +2,7 @@ import asyncio
 import time
 import os
 from dotenv import load_dotenv
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from typing import AsyncGenerator, Optional, List
 
 import redis.asyncio as redis
@@ -23,14 +23,27 @@ from jose import jwt, JWTError
 from .models import User, Form, Question, Option, Answer, Submission, Respondent
 
 from .schemas import (
-    UserCreate, UserRead, Token,
-    FormCreate, FormRead,
-    SubmissionCreate, SubmissionRead,
-    RespondentCreate, RespondentRead,
-    UserAvatarUpdate, UserUpdateUsername, UserUpdateEmail, UserUpdatePassword,
+    UserCreate,
+    UserRead,
+    Token,
+    FormCreate,
+    FormRead,
+    SubmissionCreate,
+    SubmissionRead,
+    RespondentCreate,
+    RespondentRead,
+    UserAvatarUpdate,
+    UserUpdateUsername,
+    UserUpdateEmail,
+    UserUpdatePassword,
 )
 
 from .forms_links import create_forms_token, decode_forms_token, generate_qr_code
+
+from .email_verification import (
+    generate_email_verification_token,
+    send_verification_email,
+)
 
 
 load_dotenv()
@@ -65,6 +78,10 @@ app.add_middleware(
 redis_client = None
 pg_pool: AsyncEngine | None = None
 SessionLocal: sessionmaker | None = None
+
+
+def utcnow():
+    return datetime.now(timezone.utc)
 
 
 async def wait_for_postgres(timeout: int = 30):
@@ -125,7 +142,7 @@ def verify_password(password: str, hashed: str):
 
 def create_access_token(data: dict, expires_delta: Optional[timedelta] = None):
     to_encode = data.copy()
-    expire = datetime.utcnow() + (
+    expire = utcnow() + (
         expires_delta or timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
     )
     to_encode.update({"exp": expire})
@@ -182,22 +199,85 @@ async def register_user(
     user_in: UserCreate,
     session: AsyncSession = Depends(get_session),
 ):
+    result = await session.exec(select(User).where(User.email == user_in.email))
+    if result.first():
+        raise HTTPException(status_code=400, detail="Email already exists")
+
     result = await session.exec(select(User).where(User.username == user_in.username))
-    existing = result.first()
-    if existing:
-        raise HTTPException(400, "Username already exists")
+    if result.first():
+        raise HTTPException(status_code=400, detail="Username already exists")
+
+    token = generate_email_verification_token()
 
     user = User(
         username=user_in.username,
-        password=hash_password(user_in.password),
         email=user_in.email,
-        created_at=datetime.utcnow(),
+        password=hash_password(user_in.password),
+        created_at=utcnow(),
+        is_email_verified=False,
+        email_verification_token=token,
+        email_verification_expires=utcnow() + timedelta(hours=24),
     )
 
     session.add(user)
     await session.commit()
-    await session.refresh(user)
+
+    try:
+        send_verification_email(user.email, token)
+    except Exception as e:
+        print("EMAIL ERROR:", e)
+
     return user
+
+
+@app.get("/verify-email")
+async def verify_email(token: str, session: AsyncSession = Depends(get_session)):
+    result = await session.exec(
+        select(User).where(User.email_verification_token == token)
+    )
+    user = result.first()
+
+    if not user:
+        raise HTTPException(400, "Invalid token")
+
+    if user.email_verification_expires < utcnow():
+        raise HTTPException(400, "Token expired")
+
+    user.is_email_verified = True
+    user.email_verification_token = None
+    user.email_verification_expires = None
+
+    session.add(user)
+    await session.commit()
+
+    return {"message": "Email verified successfully"}
+
+
+@app.post("/resend-verification")
+async def resend_verification_email(
+    email: str,
+    session: AsyncSession = Depends(get_session),
+):
+    result = await session.exec(select(User).where(User.email == email))
+    user = result.first()
+
+    if not user:
+        return {"message": "If the email exists, a verification email was sent"}
+
+    if user.is_email_verified:
+        raise HTTPException(status_code=400, detail="Email is already verified")
+
+    token = generate_email_verification_token()
+
+    user.email_verification_token = token
+    user.email_verification_expires = utcnow() + timedelta(hours=24)
+
+    session.add(user)
+    await session.commit()
+
+    send_verification_email(user.email, token)
+
+    return {"message": "Verification email sent"}
 
 
 @app.post("/token", response_model=Token)
@@ -210,6 +290,9 @@ async def login(
 
     if not user or not verify_password(form_data.password, user.password):
         raise HTTPException(401, "Incorrect username or password")
+
+    if not user.is_email_verified:
+        raise HTTPException(403, "Email not verified")
 
     token = create_access_token({"sub": user.username})
     return Token(access_token=token)
@@ -229,7 +312,7 @@ async def create_form(
     form = Form(
         creator_id=user.id,
         title=form_in.title,
-        created_at=datetime.utcnow(),
+        created_at=utcnow(),
     )
     session.add(form)
     await session.flush()
@@ -241,7 +324,7 @@ async def create_form(
             ans_kind=q.ans_kind,
             is_required=q.is_required,
             position=q.position,
-            created_at=datetime.utcnow(),
+            created_at=utcnow(),
         )
         session.add(question)
         await session.flush()
@@ -252,7 +335,7 @@ async def create_form(
                 option_text=o.option_text,
                 is_correct=o.is_correct,
                 position=o.position,
-                created_at=datetime.utcnow(),
+                created_at=utcnow(),
             )
             session.add(option)
 
@@ -323,7 +406,7 @@ async def create_respondent(
         name=r_in.name,
         locale=r_in.locale,
         gdpr_consent=r_in.gdpr_consent,
-        created_at=datetime.utcnow(),
+        created_at=utcnow(),
     )
     session.add(r)
     await session.commit()
@@ -344,8 +427,8 @@ async def create_submission(
         form_id=form.id,
         respondent_id=sub_in.respondent_id,
         respondent_user_id=sub_in.respondent_user_id,
-        started_at=datetime.utcnow(),
-        submitted_at=datetime.utcnow(),
+        started_at=utcnow(),
+        submitted_at=utcnow(),
     )
     session.add(submission)
     await session.flush()
@@ -358,7 +441,7 @@ async def create_submission(
             question_id=a.question_id,
             answer_text=a.answer_text,
             option_id=a.option_id,
-            created_at=datetime.utcnow(),
+            created_at=utcnow(),
         )
         session.add(answer)
 
@@ -479,6 +562,7 @@ async def update_avatar(
     await session.refresh(current_user)
     return current_user
 
+
 @app.patch("/me/username", response_model=UserRead)
 async def update_username(
     data_in: UserUpdateUsername,
@@ -516,6 +600,7 @@ async def update_email(
     await session.refresh(current_user)
     return current_user
 
+
 @app.patch("/me/password", response_model=UserRead)
 async def update_password(
     data_in: UserUpdatePassword,
@@ -531,6 +616,7 @@ async def update_password(
     await session.commit()
     await session.refresh(current_user)
     return current_user
+
 
 @app.get("/forms/{form_id}/stats")
 async def get_form_stats(

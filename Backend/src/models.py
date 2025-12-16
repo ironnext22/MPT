@@ -6,6 +6,18 @@ from sqlalchemy import Column, Enum as PgEnum, UUID
 from sqlmodel import Field, Relationship, SQLModel
 
 
+from sqlalchemy import Column, DateTime
+from sqlmodel import SQLModel, Field
+from datetime import datetime
+from typing import Optional
+
+
+from typing import Optional, List
+from datetime import datetime
+from sqlalchemy import Column, DateTime
+from sqlmodel import SQLModel, Field, Relationship
+
+
 class User(SQLModel, table=True):
     __tablename__ = "users"
     __table_args__ = {"schema": "forms"}
@@ -14,11 +26,21 @@ class User(SQLModel, table=True):
     username: str
     password: str
     email: str
-    created_at: datetime
+
+    created_at: datetime = Field(
+        sa_column=Column(DateTime(timezone=True), nullable=False)
+    )
+
     avatar_url: Optional[str] = None
 
-    forms: list["Form"] = Relationship(back_populates="creator")
-    submissions: list["Submission"] = Relationship(back_populates="respondent_user")
+    is_email_verified: bool = Field(default=False)
+    email_verification_token: Optional[str] = None
+    email_verification_expires: Optional[datetime] = Field(
+        default=None, sa_column=Column(DateTime(timezone=True))
+    )
+
+    forms: List["Form"] = Relationship(back_populates="creator")
+    submissions: List["Submission"] = Relationship(back_populates="respondent_user")
 
 
 class Respondent(SQLModel, table=True):
@@ -87,7 +109,10 @@ class Question(SQLModel, table=True):
     ans_kind: str = Field(
         sa_column=Column(
             PgEnum(
-                'short_text', 'long_text', 'single_choice', 'multiple_choice',
+                "short_text",
+                "long_text",
+                "single_choice",
+                "multiple_choice",
                 name="ans_type",
                 schema="forms",
             ),
