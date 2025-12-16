@@ -13,7 +13,6 @@ from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
 from sqlalchemy import text
 from sqlalchemy.orm import sessionmaker, selectinload
 from sqlalchemy.ext.asyncio import AsyncEngine, create_async_engine
-from sqlalchemy import func
 
 from sqlmodel import SQLModel, select
 from sqlmodel.ext.asyncio.session import AsyncSession
@@ -33,8 +32,6 @@ from .schemas import (
 
 from .forms_links import create_forms_token, decode_forms_token, generate_qr_code
 
-import aiosmtplib
-from email.message import EmailMessage
 
 load_dotenv()
 
@@ -44,16 +41,11 @@ DB_HOST = os.getenv("DB_HOST")
 DB_PORT = os.getenv("DB_PORT")
 DB_NAME = os.getenv("DB_NAME")
 
-MAIL_HOST = os.getenv("MAIL_HOST")
-MAIL_PORT = int(os.getenv("MAIL_PORT", "587"))
-MAIL_USERNAME = os.getenv("MAIL_USERNAME")
-MAIL_PASSWORD = os.getenv("MAIL_PASSWORD")
-MAIL_FROM = os.getenv("MAIL_FROM")
-
-DATABASE_URL = f"postgresql+asyncpg://{DB_USER}:{DB_PASSWORD}@{DB_HOST}:{DB_PORT}/{DB_NAME}"
+DATABASE_URL = (
+    f"postgresql+asyncpg://{DB_USER}:{DB_PASSWORD}@{DB_HOST}:{DB_PORT}/{DB_NAME}"
+)
 
 SECRET_KEY = "ZMIEN_TO_NA_SEKRETNY_KLUCZ"
-CONFIRM_SECRET = "SUPER_TAJNY_KLUCZ_DO_EMAILI"
 ALGORITHM = "HS256"
 ACCESS_TOKEN_EXPIRE_MINUTES = 60
 
@@ -73,32 +65,6 @@ app.add_middleware(
 redis_client = None
 pg_pool: AsyncEngine | None = None
 SessionLocal: sessionmaker | None = None
-
-
-async def send_email(to: str, subject: str, text: str):
-    msg = EmailMessage()
-    msg["From"] = MAIL_FROM
-    msg["To"] = to
-    msg["Subject"] = subject
-    msg.set_content(text)
-
-    await aiosmtplib.send(
-        msg,
-        hostname=MAIL_HOST,
-        port=MAIL_PORT,
-        username=MAIL_USERNAME,
-        password=MAIL_PASSWORD,
-        start_tls=True,
-    )
-
-
-def create_confirmation_token(email: str):
-    expire = datetime.utcnow() + timedelta(hours=24)
-    return jwt.encode({"sub": email, "exp": expire}, CONFIRM_SECRET, algorithm=ALGORITHM)
-
-
-def verify_confirmation_token(token: str):
-    return jwt.decode(token, CONFIRM_SECRET, algorithms=[ALGORITHM])
 
 
 async def wait_for_postgres(timeout: int = 30):
@@ -214,7 +180,6 @@ async def check_connections():
 @app.post("/users", response_model=UserRead)
 async def register_user(
     user_in: UserCreate,
-    request: Request,
     session: AsyncSession = Depends(get_session),
 ):
     result = await session.exec(select(User).where(User.username == user_in.username))
@@ -222,57 +187,17 @@ async def register_user(
     if existing:
         raise HTTPException(400, "Username already exists")
 
-    result = await session.exec(select(User).where(User.email == user_in.email))
-    existing_mail = result.first()
-    if existing_mail:
-        raise HTTPException(400, "Email already exists")
-
     user = User(
         username=user_in.username,
         password=hash_password(user_in.password),
         email=user_in.email,
         created_at=datetime.utcnow(),
-        is_confirmed=False,
     )
 
     session.add(user)
     await session.commit()
     await session.refresh(user)
-
-    token = create_confirmation_token(user.email)
-    confirm_link = f"{request.base_url}users/confirm/{token}"
-
-    await send_email(
-        user.email,
-        "Potwierdzenie konta",
-        f"Kliknij aby aktywować konto:\n{confirm_link}"
-    )
-
     return user
-
-
-@app.get("/users/confirm/{token}")
-async def confirm_user(token: str, session: AsyncSession = Depends(get_session)):
-    try:
-        payload = verify_confirmation_token(token)
-    except Exception:
-        raise HTTPException(400, "Invalid or expired token")
-
-    email = payload["sub"]
-    result = await session.exec(select(User).where(User.email == email))
-    user = result.first()
-
-    if not user:
-        raise HTTPException(404, "User not found")
-
-    if user.is_confirmed:
-        return {"message": "Already confirmed"}
-
-    user.is_confirmed = True
-    session.add(user)
-    await session.commit()
-
-    return {"message": "Email confirmed"}
 
 
 @app.post("/token", response_model=Token)
@@ -285,9 +210,6 @@ async def login(
 
     if not user or not verify_password(form_data.password, user.password):
         raise HTTPException(401, "Incorrect username or password")
-
-    if not user.is_confirmed:
-        raise HTTPException(403, "Account not confirmed")
 
     token = create_access_token({"sub": user.username})
     return Token(access_token=token)
@@ -336,7 +258,9 @@ async def create_form(
 
     await session.commit()
     await session.refresh(form)
-
+    #
+    # for q in form.questions:
+    #     _ = q.options
     result = await session.exec(
         select(Form)
         .where(Form.id == form.id)
@@ -352,6 +276,13 @@ async def list_forms(
     user: User = Depends(get_current_user),
     session: AsyncSession = Depends(get_session),
 ):
+    result = await session.exec(select(Form).where(Form.creator_id == user.id))
+    forms = result.all()
+
+    # for f in forms:
+    #     for q in f.questions:
+    #         _ = q.options
+
     stmt = (
         select(Form)
         .where(Form.creator_id == user.id)
@@ -457,6 +388,9 @@ async def get_submissions(
     if form.creator_id != user.id:
         raise HTTPException(403, "Not authorized")
 
+    result = await session.exec(select(Submission).where(Submission.form_id == form_id))
+    submissions = result.all()
+
     stmt = (
         select(Submission)
         .where(Submission.form_id == form_id)
@@ -538,12 +472,12 @@ async def update_avatar(
     current_user: User = Depends(get_current_user),
     session: AsyncSession = Depends(get_session),
 ):
+    # avatar_url może być np. linkiem do CDN albo data:URL (base64)
     current_user.avatar_url = avatar_in.avatar_url
     session.add(current_user)
     await session.commit()
     await session.refresh(current_user)
     return current_user
-
 
 @app.patch("/me/username", response_model=UserRead)
 async def update_username(
@@ -551,6 +485,7 @@ async def update_username(
     current_user: User = Depends(get_current_user),
     session: AsyncSession = Depends(get_session),
 ):
+    # sprawdzamy, czy login już istnieje
     result = await session.exec(select(User).where(User.username == data_in.username))
     existing = result.first()
     if existing and existing.id != current_user.id:
@@ -569,6 +504,7 @@ async def update_email(
     current_user: User = Depends(get_current_user),
     session: AsyncSession = Depends(get_session),
 ):
+    # sprawdzamy, czy email już istnieje
     result = await session.exec(select(User).where(User.email == data_in.email))
     existing = result.first()
     if existing and existing.id != current_user.id:
@@ -580,13 +516,13 @@ async def update_email(
     await session.refresh(current_user)
     return current_user
 
-
 @app.patch("/me/password", response_model=UserRead)
 async def update_password(
     data_in: UserUpdatePassword,
     current_user: User = Depends(get_current_user),
     session: AsyncSession = Depends(get_session),
 ):
+    # verify_password i hash_password już masz w pliku
     if not verify_password(data_in.current_password, current_user.password):
         raise HTTPException(status_code=400, detail="Invalid current password")
 
@@ -595,113 +531,3 @@ async def update_password(
     await session.commit()
     await session.refresh(current_user)
     return current_user
-
-
-@app.get("/forms/{form_id}/stats")
-async def get_form_stats(
-    form_id: int,
-    user: User = Depends(get_current_user),
-    session: AsyncSession = Depends(get_session),
-):
-    form = await session.get(Form, form_id)
-    if not form:
-        raise HTTPException(404, "Form not found")
-    if form.creator_id != user.id:
-        raise HTTPException(403, "Not authorized")
-
-    total_submissions = await session.exec(
-        select(func.count(Submission.id)).where(Submission.form_id == form_id)
-    )
-    total_submissions = total_submissions.one()
-
-    unique_respondents = await session.exec(
-        select(func.count(func.distinct(Submission.respondent_id)))
-        .where(Submission.form_id == form_id)
-    )
-    unique_respondents = unique_respondents.one()
-
-    avg_duration = await session.exec(
-        select(
-            func.avg(
-                func.extract("epoch", Submission.submitted_at - Submission.started_at)
-            )
-        ).where(Submission.form_id == form_id)
-    )
-    avg_duration = avg_duration.one()
-
-    result = await session.exec(
-        select(Question)
-        .where(Question.form_id == form_id)
-        .options(selectinload(Question.options))
-    )
-    questions = result.all()
-
-    question_stats = []
-    for q in questions:
-        stats = await compute_question_stats(q, session)
-        question_stats.append(stats)
-
-    return {
-        "form_id": form_id,
-        "submissions": total_submissions,
-        "unique_respondents": unique_respondents,
-        "avg_duration_seconds": avg_duration,
-        "questions": question_stats,
-    }
-
-
-@app.get("/forms/{form_id}/stats/questions/{question_id}")
-async def get_question_stats(
-    form_id: int,
-    question_id: int,
-    user: User = Depends(get_current_user),
-    session: AsyncSession = Depends(get_session),
-):
-    form = await session.get(Form, form_id)
-    if not form:
-        raise HTTPException(404, "Form not found")
-    if form.creator_id != user.id:
-        raise HTTPException(403, "Not authorized")
-
-    question = await session.get(Question, question_id)
-    if not question:
-        raise HTTPException(404, "Question not found")
-    if question.form_id != form_id:
-        raise HTTPException(400, "Question does not belong to this form")
-
-    stats = await compute_question_stats(question, session)
-    return stats
-
-
-async def compute_question_stats(question: Question, session: AsyncSession):
-    total_answers = await session.exec(
-        select(func.count(Answer.id)).where(Answer.question_id == question.id)
-    )
-    total_answers = total_answers.one()
-
-    result = {
-        "question_id": question.id,
-        "text": question.question_text,
-        "ans_kind": question.ans_kind,
-        "total_answers": total_answers,
-    }
-
-    if question.ans_kind in ("single_choice", "multiple_choice"):
-        option_counts = {}
-        for opt in question.options:
-            count = await session.exec(
-                select(func.count(Answer.id)).where(Answer.option_id == opt.id)
-            )
-            option_counts[opt.option_text] = count.one()
-
-        result["options"] = option_counts
-
-    else:
-        texts = await session.exec(
-            select(Answer.answer_text)
-            .where(Answer.question_id == question.id)
-            .limit(20)
-        )
-        result["sample_texts"] = [t for (t,) in texts.all()]
-
-    return result

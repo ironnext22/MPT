@@ -20,8 +20,6 @@ class User(SQLModel, table=True):
     forms: list["Form"] = Relationship(back_populates="creator")
     submissions: list["Submission"] = Relationship(back_populates="respondent_user")
 
-    is_confirmed: bool = Field(default=False)
-
 
 class Respondent(SQLModel, table=True):
     __tablename__ = "respondents"
