@@ -286,6 +286,14 @@ export default function App() {
                             }
                         />
                         <Route
+                            path="/forms/:id/edit"
+                            element={
+                                <ProtectedRoute>
+                                    <FormBuilder />
+                                </ProtectedRoute>
+                            }
+                        />
+                        <Route
                             path="/forms/:id/submissions"
                             element={
                                 <ProtectedRoute>
