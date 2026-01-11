@@ -89,8 +89,8 @@ export default function PublicForm() {
 
     if (submitted) {
         return (
-            <div style={{ padding: 40, textAlign: "center", fontFamily: "sans-serif" }}>
-                <h1>Dziękujemy!</h1>
+            <div style={{ padding: 40, textAlign: "center" }}>
+                <h1 style={{ color: "var(--nav-bg)" }}>Dziękujemy!</h1>
                 <p>Twoja odpowiedź została zapisana.</p>
             </div>
         );
@@ -100,42 +100,58 @@ export default function PublicForm() {
         return <div style={{ padding: 20 }}>Ładowanie ankiety...</div>;
     }
 
-    // STYLE DLA WIERSZA OPCJI
+    // STYLE ZMODYFIKOWANE POD ZMIENNE GLOBALNE
     const optionRowStyle = {
         display: "flex",
         alignItems: "center",
-        justifyContent: "space-between", // Rozsuwa tekst i input na boki
+        justifyContent: "space-between",
         padding: "10px 0",
-        borderBottom: "1px solid #eee",
+        borderBottom: "1px solid var(--border-color)", // ZMIENNA
         cursor: "pointer",
         width: "100%"
     };
 
     const textStyle = {
-        flex: 1, // Tekst zabiera całą wolną przestrzeń
-        paddingRight: "20px", // Odstęp, żeby tekst nie dotykał okienka
-        wordBreak: "break-word" // Łamanie długich słów
+        flex: 1,
+        paddingRight: "20px",
+        wordBreak: "break-word",
+        color: "var(--text-color)" // ZMIENNA
     };
 
     const inputStyle = {
         cursor: "pointer",
         width: "18px",
         height: "18px",
-        flexShrink: 0 // Zapobiega ściskaniu okienka przy bardzo długim tekście
+        flexShrink: 0
     };
 
     return (
-        <div style={{ padding: 20, maxWidth: 600, margin: "0 auto", fontFamily: "sans-serif", color: "#333" }}>
-            <h1 style={{ textAlign: "center", marginBottom: 30 }}>{form.title}</h1>
+        <div style={{ padding: 20, maxWidth: 600, margin: "0 auto", color: "var(--text-color)" }}>
+            <h1 style={{ textAlign: "center", marginBottom: 30, color: "var(--nav-bg)" }}>{form.title}</h1>
 
-            <form onSubmit={handleSubmit}>
-                <div style={{ marginBottom: 30, padding: 20, background: "#fdfdfd", border: "1px solid #ddd", borderRadius: 10 }}>
+            <form onSubmit={handleSubmit} style={{ background: "transparent", border: "none", boxShadow: "none" }}>
+                {/* Sekcja Email */}
+                <div style={{
+                    marginBottom: 30,
+                    padding: 20,
+                    background: "var(--card-bg)",
+                    border: "1px solid var(--border-color)",
+                    borderRadius: 10
+                }}>
                     <label style={{ display: "block", marginBottom: 8, fontWeight: "bold" }}>Twój e-mail (opcjonalnie):</label>
                     <input
                         type="email"
                         value={respondentEmail}
                         onChange={(e) => setRespondentEmail(e.target.value)}
-                        style={{ width: "100%", padding: "10px", borderRadius: 5, border: "1px solid #ccc", boxSizing: "border-box" }}
+                        style={{
+                            width: "100%",
+                            padding: "10px",
+                            borderRadius: 5,
+                            border: "1px solid var(--border-color)",
+                            background: "var(--input-bg)",
+                            color: "var(--text-color)",
+                            boxSizing: "border-box"
+                        }}
                         placeholder="np. jan@kowalski.pl"
                     />
                 </div>
@@ -143,12 +159,12 @@ export default function PublicForm() {
                 {form.questions.map((q, idx) => (
                     <div key={q.id} style={{ marginBottom: 40 }}>
                         <p style={{ fontWeight: "bold", fontSize: "1.1em", marginBottom: idx === 0 ? 15 : 10 }}>
-                            {idx + 1}. {q.question_text} {q.is_required && <span style={{ color: "red" }}>*</span>}
+                            {idx + 1}. {q.question_text} {q.is_required && <span style={{ color: "#ef4444" }}>*</span>}
                         </p>
 
                         {/* Krótka instrukcja dla wielokrotnego wyboru */}
                         {q.ans_kind === "multiple_choice" && (
-                            <p style={{ fontSize: "0.85em", color: "#777", marginTop: -10, marginBottom: 10 }}>(Możesz wybrać kilka odpowiedzi)</p>
+                            <p style={{ fontSize: "0.85em", color: "var(--footer-text)", marginTop: -10, marginBottom: 10 }}>(Możesz wybrać kilka odpowiedzi)</p>
                         )}
 
                         {/* PYTANIA TEKSTOWE */}
@@ -157,7 +173,15 @@ export default function PublicForm() {
                                 type="text"
                                 required={q.is_required}
                                 onChange={(e) => handleAnswerChange(q.id, e.target.value)}
-                                style={{ width: "100%", padding: "10px", borderRadius: 5, border: "1px solid #ccc", boxSizing: "border-box" }}
+                                style={{
+                                    width: "100%",
+                                    padding: "10px",
+                                    borderRadius: 5,
+                                    border: "1px solid var(--border-color)",
+                                    background: "var(--input-bg)",
+                                    color: "var(--text-color)",
+                                    boxSizing: "border-box"
+                                }}
                             />
                         )}
 
@@ -191,12 +215,14 @@ export default function PublicForm() {
                         fontSize: "1.1em",
                         fontWeight: "bold",
                         cursor: "pointer",
-                        background: "#007bff",
+                        background: "var(--primary-button)",
                         color: "white",
                         border: "none",
                         borderRadius: 8,
-                        transition: "background 0.2s"
+                        transition: "opacity 0.2s"
                     }}
+                    onMouseOver={(e) => e.target.style.background = "var(--primary-button-hover)"}
+                    onMouseOut={(e) => e.target.style.background = "var(--primary-button)"}
                 >
                     Wyślij zgłoszenie
                 </button>

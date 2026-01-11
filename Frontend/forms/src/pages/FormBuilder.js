@@ -16,10 +16,7 @@ function isChoiceKind(kind) {
 }
 
 export default function FormBuilder() {
-    // ✅ u Ciebie param to :id
     const { id } = useParams();
-
-    // ✅ “Kontynuacja”: jeśli jest id -> edytujemy (nie sprawdzamy /edit)
     const isEdit = useMemo(() => !!id, [id]);
 
     const [title, setTitle] = useState("");
@@ -30,7 +27,6 @@ export default function FormBuilder() {
     const nav = useNavigate();
     const modal = useContext(ModalContext) || { showModal: () => {} };
 
-    // ✅ Wczytanie danych formularza do kontynuacji/edycji
     useEffect(() => {
         if (!isEdit) return;
 
@@ -69,7 +65,6 @@ export default function FormBuilder() {
                 modal.showModal("Błąd", "Nie udało się wczytać formularza do edycji.");
             }
         })();
-        // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [isEdit, id]);
 
     function normalizePositions(qs) {
@@ -189,9 +184,11 @@ export default function FormBuilder() {
 
     return (
         <div style={wrapStyle}>
-            <h2 style={{ marginBottom: 12 }}>{isEdit ? "Edytuj formularz" : "Nowy formularz"}</h2>
+            <h2 style={{ marginBottom: 12, color: "var(--nav-bg)" }}>
+                {isEdit ? "Edytuj formularz" : "Nowy formularz"}
+            </h2>
 
-            <form onSubmit={submit}>
+            <form onSubmit={submit} style={{ background: "transparent", boxShadow: "none", border: "none", padding: 0 }}>
                 <div style={{ marginBottom: 14 }}>
                     <label style={labelStyle}>Tytuł</label>
                     <input
@@ -204,8 +201,8 @@ export default function FormBuilder() {
 
                 {questions.map((q, qidx) => (
                     <div key={qidx} style={cardStyle}>
-                        <div style={{ display: "flex", justifyContent: "space-between", gap: 10 }}>
-                            <div style={{ flex: 1 }}>
+                        <div style={{ display: "flex", justifyContent: "space-between", gap: 10, flexWrap: "wrap" }}>
+                            <div style={{ flex: 1, minWidth: 280 }}>
                                 <label style={labelStyle}>Pytanie #{qidx + 1}</label>
                                 <input
                                     value={q.question_text}
@@ -237,7 +234,7 @@ export default function FormBuilder() {
                                     style={inputStyle}
                                 >
                                     {ANSWER_TYPES.map((t) => (
-                                        <option key={t.value} value={t.value}>
+                                        <option key={t.value} value={t.value} style={{ background: "var(--input-bg)" }}>
                                             {t.label}
                                         </option>
                                     ))}
@@ -246,11 +243,12 @@ export default function FormBuilder() {
                         </div>
 
                         <div style={{ display: "flex", alignItems: "center", gap: 12, marginTop: 10 }}>
-                            <label style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                            <label style={{ display: "flex", alignItems: "center", gap: 8, cursor: "pointer", color: "var(--text-color)" }}>
                                 <input
                                     type="checkbox"
                                     checked={!!q.is_required}
                                     onChange={(e) => updateQuestion(qidx, { is_required: e.target.checked })}
+                                    style={{ width: "auto", margin: 0 }}
                                 />
                                 Wymagane
                             </label>
@@ -268,8 +266,8 @@ export default function FormBuilder() {
                         </div>
 
                         {isChoiceKind(q.ans_kind) && (
-                            <div style={{ marginTop: 12 }}>
-                                <div style={{ fontWeight: 600, marginBottom: 8 }}>Opcje</div>
+                            <div style={{ marginTop: 12, padding: 12, background: "var(--bg-color)", borderRadius: 8 }}>
+                                <div style={{ fontWeight: 600, marginBottom: 8, color: "var(--text-color)" }}>Opcje</div>
 
                                 {(q.options || []).map((o, oidx) => (
                                     <div key={oidx} style={{ display: "flex", gap: 10, alignItems: "center", marginBottom: 8 }}>
@@ -279,13 +277,17 @@ export default function FormBuilder() {
                                             placeholder={`Opcja ${oidx + 1}`}
                                             style={{ ...inputStyle, marginBottom: 0 }}
                                         />
-                                        <button type="button" onClick={() => removeOption(qidx, oidx)} style={btnStyle}>
+                                        <button
+                                            type="button"
+                                            onClick={() => removeOption(qidx, oidx)}
+                                            style={{...btnStyle, background: "var(--footer-text)", color: "#fff", border: "none"}}
+                                        >
                                             Usuń
                                         </button>
                                     </div>
                                 ))}
 
-                                <button type="button" onClick={() => addOption(qidx)} style={btnStyle}>
+                                <button type="button" onClick={() => addOption(qidx)} style={{...btnStyle, marginTop: 8}}>
                                     + Dodaj opcję
                                 </button>
                             </div>
@@ -311,27 +313,28 @@ export default function FormBuilder() {
     );
 }
 
-// styles
+// Globalne style przeniesione na zmienne
 const wrapStyle = {
     maxWidth: 900,
     margin: "0 auto",
     padding: 20,
+    color: "var(--text-color)"
 };
 
 const cardStyle = {
-    background: "#fff",
-    border: "1px solid #eee",
+    background: "var(--card-bg)",
+    border: "1px solid var(--border-color)",
     borderRadius: 10,
     padding: 16,
-    marginBottom: 12,
-    boxShadow: "0 2px 10px rgba(0,0,0,0.04)",
+    marginBottom: 20,
+    boxShadow: "0 2px 10px rgba(0,0,0,0.1)",
 };
 
 const labelStyle = {
     display: "block",
     fontSize: 13,
     fontWeight: 600,
-    color: "#444",
+    color: "var(--footer-text)",
     marginBottom: 6,
 };
 
@@ -339,24 +342,27 @@ const inputStyle = {
     width: "100%",
     padding: 10,
     borderRadius: 8,
-    border: "1px solid #ddd",
+    border: "1px solid var(--border-color)",
+    background: "var(--input-bg)",
+    color: "var(--text-color)",
     marginBottom: 6,
     outline: "none",
 };
 
 const btnStyle = {
-    padding: "10px 12px",
+    padding: "10px 16px",
     borderRadius: 8,
-    border: "1px solid #ddd",
-    background: "#f7f7f7",
+    border: "1px solid var(--border-color)",
+    background: "var(--input-bg)",
     cursor: "pointer",
     fontSize: 14,
-    color: "#111",
+    color: "var(--text-color)",
+    fontWeight: "500"
 };
 
 const primaryBtnStyle = {
     ...btnStyle,
-    background: "#28a745",
+    background: "var(--primary-button)",
     border: "none",
     color: "white",
 };

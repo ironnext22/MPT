@@ -14,9 +14,8 @@ export default function SubmissionsList() {
     const [submissions, setSubmissions] = useState([]);
     const [formInfo, setFormInfo] = useState(null);
     const [loading, setLoading] = useState(true);
-    const [questionStats, setQuestionStats] = useState({}); // question_id -> stats from get_question_stats
+    const [questionStats, setQuestionStats] = useState({});
 
-    // paginacja tekstowych odpowiedzi: question_id -> page
     const [textPages, setTextPages] = useState({});
 
     useEffect(() => {
@@ -30,7 +29,6 @@ export default function SubmissionsList() {
                 setFormInfo(form);
                 setSubmissions(subRes.data);
 
-                // Pobierz statystyki dla pytań wyboru (single_choice / multiple_choice)
                 try {
                     const choiceQuestions = (form.questions || []).filter(
                         (q) =>
@@ -73,32 +71,36 @@ export default function SubmissionsList() {
         }));
     };
 
-    if (loading) return <div style={{ padding: 20 }}>Ładowanie wyników...</div>;
+    if (loading) return <div style={{ padding: 20, color: "var(--text-color)" }}>Ładowanie wyników...</div>;
 
     if (!formInfo)
         return (
-            <div style={{ padding: 20 }}>
+            <div style={{ padding: 20, color: "var(--text-color)" }}>
                 Nie udało się pobrać informacji o formularzu.
             </div>
         );
 
     return (
-        <div style={{ padding: 20 }}>
+        <div style={{ padding: 20, color: "var(--text-color)" }}>
             <button
                 onClick={() => nav("/dashboard")}
-                style={{ marginBottom: 20 }}
+                style={{
+                    marginBottom: 20,
+                    background: "var(--nav-bg)",
+                    color: "var(--nav-text)"
+                }}
             >
                 ← Wróć do Dashboardu
             </button>
 
-            <h2 style={{ marginBottom: 4 }}>Wyniki: {formInfo.title}</h2>
-            <p style={{ marginBottom: 24 }}>
+            <h2 style={{ marginBottom: 4, color: "var(--nav-bg)" }}>Wyniki: {formInfo.title}</h2>
+            <p style={{ marginBottom: 24, color: "var(--footer-text)" }}>
                 Liczba zgłoszeń:{" "}
-                <strong>{submissions ? submissions.length : 0}</strong>
+                <strong style={{ color: "var(--text-color)" }}>{submissions ? submissions.length : 0}</strong>
             </p>
 
             {(!submissions || submissions.length === 0) && (
-                <p style={{ fontStyle: "italic", color: "#666" }}>
+                <p style={{ fontStyle: "italic", color: "var(--footer-text)" }}>
                     Nikt jeszcze nie wypełnił tej ankiety.
                 </p>
             )}
@@ -106,7 +108,6 @@ export default function SubmissionsList() {
             {submissions &&
                 submissions.length > 0 &&
                 formInfo.questions.map((q, index) => {
-                    // zbierz wszystkie odpowiedzi na to pytanie
                     const allAnswers = [];
                     submissions.forEach((sub) => {
                         sub.answers
@@ -133,8 +134,8 @@ export default function SubmissionsList() {
                                 marginBottom: 24,
                                 padding: 16,
                                 borderRadius: 8,
-                                border: "1px solid #ddd",
-                                background: "#fafafa",
+                                border: "1px solid var(--border-color)",
+                                background: "var(--card-bg)",
                             }}
                         >
                             <div
@@ -150,6 +151,7 @@ export default function SubmissionsList() {
                                         margin: 0,
                                         fontSize: 16,
                                         fontWeight: 600,
+                                        color: "var(--text-color)"
                                     }}
                                 >
                                     {index + 1}. {q.question_text}
@@ -157,14 +159,13 @@ export default function SubmissionsList() {
                                 <span
                                     style={{
                                         fontSize: 12,
-                                        color: "#666",
+                                        color: "var(--footer-text)",
                                     }}
                                 >
                                     {allAnswers.length} odpowiedzi
                                 </span>
                             </div>
 
-                            {/* pytania tekstowe */}
                             {isText && (
                                 <TextAnswersBlock
                                     question={q}
@@ -174,7 +175,6 @@ export default function SubmissionsList() {
                                 />
                             )}
 
-                            {/* pytania wyboru (single / multiple) */}
                             {!isText && (
                                 <ChoiceStatsBlock
                                     question={q}
@@ -199,7 +199,7 @@ function TextAnswersBlock({ question, answers, textPages, onChangePage }) {
                 style={{
                     marginTop: 8,
                     fontStyle: "italic",
-                    color: "#888",
+                    color: "var(--footer-text)",
                 }}
             >
                 Brak odpowiedzi tekstowych.
@@ -224,7 +224,7 @@ function TextAnswersBlock({ question, answers, textPages, onChangePage }) {
                         style={{
                             fontSize: 14,
                             marginBottom: 4,
-                            color: "#333",
+                            color: "var(--text-color)",
                             wordBreak: "break-word",
                         }}
                     >
@@ -247,10 +247,11 @@ function TextAnswersBlock({ question, answers, textPages, onChangePage }) {
                             onChangePage(question.id, page - 1, maxPage)
                         }
                         disabled={page <= 0}
+                        style={{ padding: "2px 8px" }}
                     >
                         ←
                     </button>
-                    <span style={{ fontSize: 12, color: "#666" }}>
+                    <span style={{ fontSize: 12, color: "var(--footer-text)" }}>
                         Strona {page + 1} / {maxPage + 1}
                     </span>
                     <button
@@ -258,6 +259,7 @@ function TextAnswersBlock({ question, answers, textPages, onChangePage }) {
                             onChangePage(question.id, page + 1, maxPage)
                         }
                         disabled={page >= maxPage}
+                        style={{ padding: "2px 8px" }}
                     >
                         →
                     </button>
@@ -270,7 +272,7 @@ function TextAnswersBlock({ question, answers, textPages, onChangePage }) {
 function ChoiceStatsBlock({ question, stats }) {
     if (!stats) {
         return (
-            <p style={{ marginTop: 8, fontStyle: "italic", color: "#888", marginBottom: 0 }}>
+            <p style={{ marginTop: 8, fontStyle: "italic", color: "var(--footer-text)", marginBottom: 0 }}>
                 Ładowanie statystyk...
             </p>
         );
@@ -281,30 +283,28 @@ function ChoiceStatsBlock({ question, stats }) {
 
     if (options.length === 0) {
         return (
-            <p style={{ marginTop: 8, fontStyle: "italic", color: "#888", marginBottom: 0 }}>
+            <p style={{ marginTop: 8, fontStyle: "italic", color: "var(--footer-text)", marginBottom: 0 }}>
                 Brak statystyk opcji.
             </p>
         );
     }
 
-    // Recharts lubi format: [{ name, value }]
     const data = options.map((o) => ({
         name: o.text ?? "(bez nazwy)",
         value: Number(o.count || 0),
         id: o.id,
     }));
 
-    // (opcjonalnie) usuń zera, żeby nie było “pustych” legend
     const dataNonZero = data.filter((d) => d.value > 0);
     const chartData = dataNonZero.length ? dataNonZero : data;
 
-    // prosta paleta kolorów (bez grzebania w CSS)
+    // Paleta pozostaje kolorowa, by odróżnić sekcje, ale tekst legendy pobierze kolor z CSS
     const COLORS = ["#4f46e5", "#22c55e", "#f59e0b", "#ef4444", "#06b6d4", "#a855f7", "#64748b"];
 
     return (
         <div style={{ marginTop: 10 }}>
-            <div style={{ fontSize: 12, color: "#666", marginBottom: 8 }}>
-                Odpowiedzi: <strong>{total}</strong>
+            <div style={{ fontSize: 12, color: "var(--footer-text)", marginBottom: 8 }}>
+                Odpowiedzi: <strong style={{ color: "var(--text-color)" }}>{total}</strong>
             </div>
 
             <div style={{ width: "100%", height: 260 }}>
@@ -315,6 +315,7 @@ function ChoiceStatsBlock({ question, stats }) {
                             dataKey="value"
                             nameKey="name"
                             outerRadius={90}
+                            stroke="var(--card-bg)" // Obramowanie kawałków pizzy
                             label={(entry) => {
                                 const percent = total > 0 ? Math.round((entry.value / total) * 100) : 0;
                                 return `${percent}%`;
@@ -326,6 +327,13 @@ function ChoiceStatsBlock({ question, stats }) {
                         </Pie>
 
                         <Tooltip
+                            contentStyle={{
+                                backgroundColor: "var(--card-bg)",
+                                borderColor: "var(--border-color)",
+                                color: "var(--text-color)",
+                                borderRadius: "8px"
+                            }}
+                            itemStyle={{ color: "var(--text-color)" }}
                             formatter={(value, name) => {
                                 const v = Number(value || 0);
                                 const percent = total > 0 ? Math.round((v / total) * 100) : 0;
@@ -337,10 +345,9 @@ function ChoiceStatsBlock({ question, stats }) {
                 </ResponsiveContainer>
             </div>
 
-            <p style={{ fontSize: 11, color: "#999", fontStyle: "italic", marginTop: 10, marginBottom: 0 }}>
-                Wykres generowany na podstawie get_question_stats.
+            <p style={{ fontSize: 11, color: "var(--footer-text)", fontStyle: "italic", marginTop: 10, marginBottom: 0 }}>
+                Wykres generowany na podstawie statystyk pytań.
             </p>
         </div>
     );
 }
-
