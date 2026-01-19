@@ -10,7 +10,7 @@ from fastapi import Depends, FastAPI, HTTPException, status, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
 
-from sqlalchemy import text
+from sqlalchemy import text, delete
 from sqlalchemy.orm import sessionmaker, selectinload
 from sqlalchemy.ext.asyncio import AsyncEngine, create_async_engine
 from sqlalchemy import func
@@ -28,7 +28,7 @@ from .schemas import (
     FormCreate, FormRead,
     SubmissionCreate, SubmissionRead,
     RespondentCreate, RespondentRead,
-    UserAvatarUpdate, UserUpdateUsername, UserUpdateEmail, UserUpdatePassword,
+    UserAvatarUpdate, UserUpdateUsername, UserUpdateEmail, UserUpdatePassword,FormUpdate,
 )
 
 from .forms_links import create_forms_token, decode_forms_token, generate_qr_code
@@ -232,21 +232,21 @@ async def register_user(
         password=hash_password(user_in.password),
         email=user_in.email,
         created_at=datetime.utcnow(),
-        is_confirmed=False,
+        is_confirmed=True,
     )
 
     session.add(user)
     await session.commit()
     await session.refresh(user)
 
-    token = create_confirmation_token(user.email)
-    confirm_link = f"{request.base_url}users/confirm/{token}"
-
-    await send_email(
-        user.email,
-        "Potwierdzenie konta",
-        f"Kliknij aby aktywować konto:\n{confirm_link}"
-    )
+    # token = create_confirmation_token(user.email)
+    # confirm_link = f"{request.base_url}users/confirm/{token}"
+    #
+    # await send_email(
+    #     user.email,
+    #     "Potwierdzenie konta",
+    #     f"Kliknij aby aktywować konto:\n{confirm_link}"
+    # )
 
     return user
 
@@ -366,11 +366,15 @@ async def list_forms(
 @app.get("/forms/{form_id}", response_model=FormRead)
 async def get_form(
     form_id: int,
+    user: User = Depends(get_current_user),
     session: AsyncSession = Depends(get_session),
 ):
     form = await session.get(Form, form_id)
     if not form:
         raise HTTPException(404, "Form not found")
+
+    if form.creator_id != user.id:
+        raise HTTPException(403, "Not authorized")
 
     result = await session.exec(
         select(Form)
@@ -378,7 +382,6 @@ async def get_form(
         .options(selectinload(Form.questions).selectinload(Question.options))
     )
     form_db = result.one()
-
     return FormRead.model_validate(form_db)
 
 
@@ -422,11 +425,42 @@ async def create_submission(
     for a in sub_in.answers:
         if (a.answer_text is None or a.answer_text == "") and a.option_id is None:
             continue
+
+        # ✅ jeżeli przyszło option_id, upewnij się że to ID opcji dla danego pytania
+        resolved_option_id = None
+        if a.option_id is not None:
+            # 1) spróbuj traktować jako Option.id
+            opt_res = await session.exec(
+                select(Option).where(
+                    Option.id == a.option_id,
+                    Option.question_id == a.question_id,
+                )
+            )
+            opt = opt_res.first()
+
+            # 2) jeśli nie znaleziono — potraktuj jako "position" (1,2,3...)
+            if not opt:
+                opt_res = await session.exec(
+                    select(Option).where(
+                        Option.question_id == a.question_id,
+                        Option.position == a.option_id,
+                    )
+                )
+                opt = opt_res.first()
+
+            if not opt:
+                raise HTTPException(
+                    status_code=400,
+                    detail=f"Invalid option_id={a.option_id} for question_id={a.question_id}",
+                )
+
+            resolved_option_id = opt.id
+
         answer = Answer(
             submission_id=submission.id,
             question_id=a.question_id,
             answer_text=a.answer_text,
-            option_id=a.option_id,
+            option_id=resolved_option_id,
             created_at=datetime.utcnow(),
         )
         session.add(answer)
@@ -663,45 +697,158 @@ async def get_question_stats(
     if form.creator_id != user.id:
         raise HTTPException(403, "Not authorized")
 
-    question = await session.get(Question, question_id)
+    result = await session.exec(
+        select(Question)
+        .where(Question.id == question_id)
+        .options(selectinload(Question.options))
+    )
+    question = result.one_or_none()
+
     if not question:
         raise HTTPException(404, "Question not found")
     if question.form_id != form_id:
         raise HTTPException(400, "Question does not belong to this form")
 
-    stats = await compute_question_stats(question, session)
-    return stats
+    return await compute_question_stats(question, session)
 
 
 async def compute_question_stats(question: Question, session: AsyncSession):
-    total_answers = await session.exec(
+    total_res = await session.exec(
         select(func.count(Answer.id)).where(Answer.question_id == question.id)
     )
-    total_answers = total_answers.one()
+    total_answers = total_res.one()
 
     result = {
         "question_id": question.id,
-        "text": question.question_text,
+        "question_text": question.question_text,
         "ans_kind": question.ans_kind,
         "total_answers": total_answers,
+        "options": [],
     }
 
     if question.ans_kind in ("single_choice", "multiple_choice"):
-        option_counts = {}
-        for opt in question.options:
-            count = await session.exec(
-                select(func.count(Answer.id)).where(Answer.option_id == opt.id)
-            )
-            option_counts[opt.option_text] = count.one()
-
-        result["options"] = option_counts
-
-    else:
-        texts = await session.exec(
-            select(Answer.answer_text)
-            .where(Answer.question_id == question.id)
-            .limit(20)
+        opt_res = await session.exec(
+            select(Option)
+            .where(Option.question_id == question.id)
+            .order_by(Option.position, Option.id)
         )
-        result["sample_texts"] = [t for (t,) in texts.all()]
+        options = opt_res.all()
+
+        for opt in options:
+            count_res = await session.exec(
+                select(func.count(Answer.id)).where(
+                    Answer.question_id == question.id,
+                    Answer.option_id == opt.id,
+                )
+            )
+            result["options"].append(
+                {
+                    "id": opt.id,
+                    "text": opt.option_text,
+                    "count": count_res.one(),
+                }
+            )
 
     return result
+
+@app.patch("/forms/{form_id}", response_model=FormRead)
+async def update_form(
+    form_id: int,
+    form_in: FormUpdate,
+    user: User = Depends(get_current_user),
+    session: AsyncSession = Depends(get_session),
+):
+    form = await session.get(Form, form_id)
+    if not form:
+        raise HTTPException(404, "Form not found")
+    if form.creator_id != user.id:
+        raise HTTPException(403, "Not authorized")
+
+    # (bezpiecznie) zablokuj edycję jeśli są już odpowiedzi
+    sub_count_res = await session.exec(
+        select(func.count(Submission.id)).where(Submission.form_id == form_id)
+    )
+    sub_count = sub_count_res.one()
+    if sub_count and int(sub_count) > 0:
+        raise HTTPException(
+            status_code=409,
+            detail="Cannot edit form that already has submissions",
+        )
+
+    # aktualizuj tytuł
+    form.title = form_in.title
+    session.add(form)
+    await session.flush()
+
+    # usuń stare pytania + opcje
+    q_res = await session.exec(select(Question.id).where(Question.form_id == form_id))
+    q_ids = q_res.all()
+
+    if q_ids:
+        await session.exec(delete(Option).where(Option.question_id.in_(q_ids)))
+    await session.exec(delete(Question).where(Question.form_id == form_id))
+
+    # wstaw nowe pytania + opcje
+    for q in form_in.questions:
+        question = Question(
+            form_id=form.id,
+            question_text=q.question_text,
+            ans_kind=q.ans_kind,
+            is_required=q.is_required,
+            position=q.position,
+            created_at=datetime.utcnow(),
+        )
+        session.add(question)
+        await session.flush()
+
+        for o in q.options:
+            option = Option(
+                question_id=question.id,
+                option_text=o.option_text,
+                is_correct=o.is_correct,
+                position=o.position,
+                created_at=datetime.utcnow(),
+            )
+            session.add(option)
+
+    await session.commit()
+
+    result = await session.exec(
+        select(Form)
+        .where(Form.id == form.id)
+        .options(selectinload(Form.questions).selectinload(Question.options))
+    )
+    form_db = result.one()
+    return FormRead.model_validate(form_db)
+
+@app.delete("/forms/{form_id}")
+async def delete_form(
+    form_id: int,
+    user: User = Depends(get_current_user),
+    session: AsyncSession = Depends(get_session),
+):
+    form = await session.get(Form, form_id)
+    if not form:
+        raise HTTPException(404, "Form not found")
+    if form.creator_id != user.id:
+        raise HTTPException(403, "Not authorized")
+
+    # usuń zależności: answers -> submissions -> options -> questions -> form
+    q_res = await session.exec(select(Question.id).where(Question.form_id == form_id))
+    q_ids = q_res.all()
+
+    s_res = await session.exec(select(Submission.id).where(Submission.form_id == form_id))
+    s_ids = s_res.all()
+
+    if s_ids:
+        await session.exec(delete(Answer).where(Answer.submission_id.in_(s_ids)))
+        await session.exec(delete(Submission).where(Submission.id.in_(s_ids)))
+
+    if q_ids:
+        await session.exec(delete(Option).where(Option.question_id.in_(q_ids)))
+
+    await session.exec(delete(Question).where(Question.form_id == form_id))
+    await session.exec(delete(Form).where(Form.id == form_id))
+
+    await session.commit()
+    return {"ok": True}

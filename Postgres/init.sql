@@ -16,7 +16,8 @@ CREATE TABLE forms.users (
     password text NOT NULL,
     email citext NOT NULL UNIQUE,
     created_at timestamptz NOT NULL DEFAULT now(),
-    avatar_url text
+    avatar_url text,
+    is_confirmed boolean
 );
 
 CREATE TABLE forms.forms (

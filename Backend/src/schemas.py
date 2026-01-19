@@ -148,3 +148,7 @@ class UserUpdateEmail(SQLModel):
 class UserUpdatePassword(SQLModel):
     current_password: str
     new_password: str
+
+class FormUpdate(SQLModel):
+    title: str
+    questions: List[QuestionCreate] = []
