@@ -7,17 +7,19 @@ export default function Contact() {
             style={{
                 maxWidth: 600,
                 margin: "40px auto",
-                padding: 20,
-                borderRadius: 8,
-                border: "1px solid #ddd",
-                background: "#f9f9f9",
+                padding: 30,
+                borderRadius: 12,
+                border: "1px solid var(--border-color)",
+                background: "var(--card-bg)",
+                boxShadow: "0 4px 12px rgba(0,0,0,0.1)",
+                color: "var(--text-color)"
             }}
         >
             <h1
                 style={{
-                    fontSize: 24,
+                    fontSize: 28,
                     marginBottom: 16,
-                    color: "#111827",
+                    color: "var(--nav-bg)",
                     fontWeight: 700,
                 }}
             >
@@ -26,20 +28,24 @@ export default function Contact() {
 
             <p
                 style={{
-                    marginBottom: 20,
-                    fontSize: 15,
-                    color: "#374151",
+                    marginBottom: 24,
+                    fontSize: 16,
+                    color: "var(--text-color)",
+                    lineHeight: "1.5"
                 }}
             >
                 Masz pytania dotyczące aplikacji MPT? Napisz do nas – chętnie pomożemy.
             </p>
 
-            <div style={{ marginBottom: 14 }}>
+            <div style={{ marginBottom: 20 }}>
                 <div
                     style={{
                         fontSize: 13,
-                        color: "#6b7280",
-                        marginBottom: 2,
+                        color: "var(--footer-text)",
+                        marginBottom: 4,
+                        textTransform: "uppercase",
+                        letterSpacing: "0.5px",
+                        fontWeight: 600
                     }}
                 >
                     E-mail
@@ -47,52 +53,59 @@ export default function Contact() {
                 <a
                     href="mailto:support@mpt.app"
                     style={{
-                        color: "#2563eb",
+                        color: "var(--nav-bg)",
                         textDecoration: "none",
-                        fontSize: 15,
+                        fontSize: 18,
+                        fontWeight: "500"
                     }}
                 >
                     support@mpt.app
                 </a>
             </div>
 
-            <div style={{ marginBottom: 14 }}>
+            <div style={{ marginBottom: 20 }}>
                 <div
                     style={{
                         fontSize: 13,
-                        color: "#6b7280",
-                        marginBottom: 2,
+                        color: "var(--footer-text)",
+                        marginBottom: 4,
+                        textTransform: "uppercase",
+                        letterSpacing: "0.5px",
+                        fontWeight: 600
                     }}
                 >
                     Telefon
                 </div>
                 <div
                     style={{
-                        fontSize: 15,
-                        color: "#111827",
+                        fontSize: 18,
+                        color: "var(--text-color)",
                     }}
                 >
                     +48 123 456 789
                 </div>
             </div>
 
-            <div>
+            <div style={{ paddingBottom: 10 }}>
                 <div
                     style={{
                         fontSize: 13,
-                        color: "#6b7280",
-                        marginBottom: 2,
+                        color: "var(--footer-text)",
+                        marginBottom: 4,
+                        textTransform: "uppercase",
+                        letterSpacing: "0.5px",
+                        fontWeight: 600
                     }}
                 >
                     Godziny wsparcia
                 </div>
                 <div
                     style={{
-                        fontSize: 15,
-                        color: "#111827",
+                        fontSize: 16,
+                        color: "var(--text-color)",
                     }}
                 >
-                    Pon–Pt, 9:00–17:00
+                    Poniedziałek – Piątek, 9:00 – 17:00
                 </div>
             </div>
         </div>
