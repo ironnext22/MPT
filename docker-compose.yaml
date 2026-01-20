@@ -80,6 +80,12 @@ services:
             - /tmp/.X11-unix:/tmp/.X11-unix
         command: ["pytest", "-v", "test_frontend.py"]
 
+    mailhog:
+        image: mailhog/mailhog
+        ports:
+        - "1025:1025"
+        - "8025:8025"
+
 
 volumes:
     pg_data:
