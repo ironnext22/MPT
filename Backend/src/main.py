@@ -10,7 +10,7 @@ from fastapi import Depends, FastAPI, HTTPException, status, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
 
-from sqlalchemy import text, delete
+from sqlalchemy import text, delete, func
 from sqlalchemy.orm import sessionmaker, selectinload
 from sqlalchemy.ext.asyncio import AsyncEngine, create_async_engine
 
@@ -36,6 +36,7 @@ from .schemas import (
     UserUpdateUsername,
     UserUpdateEmail,
     UserUpdatePassword,
+    FormUpdate,
 )
 
 from .forms_links import create_forms_token, decode_forms_token, generate_qr_code
@@ -874,3 +875,28 @@ async def delete_form(
 
     await session.commit()
     return {"ok": True}
+
+@app.get("/verify-email")
+async def verify_email(token: str, session=Depends(get_session)):
+    q = select(User).where(User.email_verification_token == token)
+    user = (await session.exec(q)).first()
+
+    if not user:
+        raise HTTPException(status_code=400, detail="Nieprawidłowy token.")
+
+    if not user.email_verification_expires:
+        raise HTTPException(status_code=400, detail="Token nie ma daty ważności.")
+
+    now = datetime.now(timezone.utc)
+    # uwaga: expires jest TIMESTAMPTZ, więc powinno działać bez kombinacji
+    if user.email_verification_expires < now:
+        raise HTTPException(status_code=400, detail="Token wygasł.")
+
+    user.is_email_verified = True
+    user.email_verification_token = None
+    user.email_verification_expires = None
+
+    session.add(user)
+    await session.commit()
+
+    return {"detail": "E-mail zweryfikowany. Możesz się zalogować."}
