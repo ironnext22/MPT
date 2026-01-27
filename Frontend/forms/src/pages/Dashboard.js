@@ -56,7 +56,7 @@ export default function Dashboard() {
 
             setShareData({
                 link: fullLink,
-                qrCode: qr_code ? `data:image/png;base64,${qr_code}` : "",
+                qrCode: qr_code || "",
             });
 
             setShareModalOpen(true);
