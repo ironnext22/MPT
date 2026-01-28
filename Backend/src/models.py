@@ -6,6 +6,18 @@ from sqlalchemy import Column, Enum as PgEnum, UUID
 from sqlmodel import Field, Relationship, SQLModel
 
 
+from sqlalchemy import Column, DateTime
+from sqlmodel import SQLModel, Field
+from datetime import datetime
+from typing import Optional
+
+
+from typing import Optional, List
+from datetime import datetime
+from sqlalchemy import Column, DateTime
+from sqlmodel import SQLModel, Field, Relationship
+
+
 class User(SQLModel, table=True):
     __tablename__ = "users"
     __table_args__ = {"schema": "forms"}
@@ -14,13 +26,21 @@ class User(SQLModel, table=True):
     username: str
     password: str
     email: str
-    created_at: datetime
+
+    created_at: datetime = Field(
+        sa_column=Column(DateTime(timezone=True), nullable=False)
+    )
+
     avatar_url: Optional[str] = None
 
-    forms: list["Form"] = Relationship(back_populates="creator")
-    submissions: list["Submission"] = Relationship(back_populates="respondent_user")
+    is_email_verified: bool = Field(default=False)
+    email_verification_token: Optional[str] = None
+    email_verification_expires: Optional[datetime] = Field(
+        default=None, sa_column=Column(DateTime(timezone=True))
+    )
 
-    is_confirmed: bool = Field(default=False)
+    forms: List["Form"] = Relationship(back_populates="creator")
+    submissions: List["Submission"] = Relationship(back_populates="respondent_user")
 
 
 class Respondent(SQLModel, table=True):
@@ -32,7 +52,8 @@ class Respondent(SQLModel, table=True):
     name: Optional[str] = None
     locale: Optional[str] = None
     gdpr_consent: bool
-    created_at: datetime
+    created_at: datetime = Field(sa_column=Column(DateTime(timezone=True), nullable=False))
+
 
     submissions: list["Submission"] = Relationship(back_populates="respondent")
 
@@ -44,7 +65,8 @@ class Form(SQLModel, table=True):
     id: Optional[int] = Field(default=None, primary_key=True)
     creator_id: int = Field(foreign_key="forms.users.id")
     title: str
-    created_at: datetime
+    created_at: datetime = Field(sa_column=Column(DateTime(timezone=True), nullable=False))
+
 
     creator: User = Relationship(back_populates="forms")
     questions: list["Question"] = Relationship(back_populates="form")
@@ -69,8 +91,13 @@ class Submission(SQLModel, table=True):
         default_factory=uuid.uuid4,
         sa_column=Column(UUID(as_uuid=True), nullable=True),
     )
-    started_at: datetime
-    submitted_at: Optional[datetime] = None
+    started_at: datetime = Field(sa_column=Column(DateTime(timezone=True), nullable=False))
+
+    submitted_at: Optional[datetime] = Field(
+        default=None,
+        sa_column=Column(DateTime(timezone=True), nullable=True),
+)
+
 
     form: Form = Relationship(back_populates="submissions")
     respondent: Optional[Respondent] = Relationship(back_populates="submissions")
@@ -89,7 +116,10 @@ class Question(SQLModel, table=True):
     ans_kind: str = Field(
         sa_column=Column(
             PgEnum(
-                'short_text', 'long_text', 'single_choice', 'multiple_choice',
+                "short_text",
+                "long_text",
+                "single_choice",
+                "multiple_choice",
                 name="ans_type",
                 schema="forms",
             ),
@@ -98,7 +128,8 @@ class Question(SQLModel, table=True):
     )
     is_required: bool
     position: int
-    created_at: datetime
+    created_at: datetime = Field(sa_column=Column(DateTime(timezone=True), nullable=False))
+
 
     form: Form = Relationship(back_populates="questions")
     options: list["Option"] = Relationship(back_populates="question")
@@ -115,7 +146,8 @@ class Option(SQLModel, table=True):
     option_text: str
     is_correct: Optional[bool] = False
     position: int
-    created_at: datetime
+    created_at: datetime = Field(sa_column=Column(DateTime(timezone=True), nullable=False))
+
 
     question: Question = Relationship(back_populates="options")
     answers: list["Answer"] = Relationship(back_populates="selected_option")
@@ -131,7 +163,8 @@ class Answer(SQLModel, table=True):
     question_id: int = Field(foreign_key="forms.questions.id")
     answer_text: Optional[str] = None
     option_id: Optional[int] = Field(default=None, foreign_key="forms.options.id")
-    created_at: datetime
+    created_at: datetime = Field(sa_column=Column(DateTime(timezone=True), nullable=False))
+
 
     submission: Submission = Relationship(back_populates="answers")
     question: Question = Relationship(back_populates="answers")

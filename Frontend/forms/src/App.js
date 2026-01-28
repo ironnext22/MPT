@@ -13,7 +13,7 @@ import Contact from "./pages/Contact";
 import { AuthContext } from "./contexts/AuthContext";
 import AppModal from "./components/AppModal";
 import api from "./api";
-
+import VerifyEmail from "./pages/VerifyEmail";
 export const ModalContext = createContext({
     showModal: () => {},
     closeModal: () => {},
@@ -205,6 +205,7 @@ export default function App() {
                         <Route path="/profile" element={<ProtectedRoute><Profile /></ProtectedRoute>} />
                         <Route path="/contact" element={<Contact />} />
                         <Route path="*" element={<Navigate to="/" replace />} />
+                        <Route path="/verify-email" element={<VerifyEmail />} />
                     </Routes>
                 </main>
 

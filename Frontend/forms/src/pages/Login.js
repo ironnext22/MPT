@@ -16,14 +16,11 @@ export default function Login() {
     async function submit(e) {
         e.preventDefault();
 
-        const formData = new FormData();
-        formData.append("username", username);
-        formData.append("password", password);
-
         try {
             const res = await api.post("/token", formData);
             setToken(res.data.access_token);
-            nav("/dashboard");
+            nav("/");
+
         } catch (err) {
             console.error(err);
 
@@ -46,7 +43,7 @@ export default function Login() {
     }
 
     return (
-        <div style={{ padding: 20, maxWidth: 400, margin: "0 auto" }}>
+        <div style={{ maxWidth: 400, margin: "0 auto" }}>
             <h2>Logowanie</h2>
 
             <form onSubmit={submit}>

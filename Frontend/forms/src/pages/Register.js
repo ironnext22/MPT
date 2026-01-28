@@ -1,3 +1,4 @@
+// src/pages/Register.js
 import React, { useState, useContext } from "react";
 import api from "../api";
 import { useNavigate } from "react-router-dom";
@@ -23,6 +24,7 @@ export default function Register() {
                 "Zarejestrowano pomyślnie. Możesz się teraz zalogować."
             );
             nav("/login");
+
         } catch (err) {
             console.error(err);
 
@@ -52,7 +54,7 @@ export default function Register() {
     }
 
     return (
-        <div style={{ padding: 20, maxWidth: 400, margin: "0 auto" }}>
+        <div style={{ maxWidth: 400, margin: "0 auto" }}>
             <h2>Rejestracja</h2>
 
             <form onSubmit={submit}>
