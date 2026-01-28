@@ -275,11 +275,12 @@ export default function Profile() {
                     marginTop: 20,
                     padding: 20,
                     borderRadius: 8,
-                    border: "1px solid #ddd",
                     display: "flex",
                     gap: 20,
                     alignItems: "center",
-                    background: "#f9f9f9",
+                    background: "var(--card-bg)",
+                    border: "1px solid var(--border-color)",
+                    color: "var(--text-color)",
                 }}
             >
                 {/* Avatar */}
@@ -288,16 +289,16 @@ export default function Profile() {
                         width: 90,
                         height: 90,
                         borderRadius: "50%",
-                        background: "#e0e0e0",
                         display: "flex",
                         alignItems: "center",
                         justifyContent: "center",
                         fontSize: 32,
                         fontWeight: "bold",
-                        color: "#555",
                         flexShrink: 0,
                         cursor: "pointer",
                         overflow: "hidden",
+                        background: "var(--input-bg)",
+                        color: "var(--text-color)",
                     }}
                     onClick={handleAvatarClick}
                     title="Kliknij, aby zmienić awatar"
@@ -554,7 +555,7 @@ const btnInlineStyle = {
     padding: "6px 12px",
     borderRadius: 6,
     border: "none",
-    background: "#007bff",
+    background: "var(--primary-button)",
     cursor: "pointer",
     fontWeight: 600,
     fontSize: 13,
