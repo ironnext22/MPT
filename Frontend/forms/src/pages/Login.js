@@ -8,6 +8,7 @@ import { ModalContext } from "../App";
 export default function Login() {
     const [username, setUsername] = useState("");
     const [password, setPassword] = useState("");
+
     const { setToken } = useContext(AuthContext);
     const nav = useNavigate();
     const modal = useContext(ModalContext);
@@ -16,31 +17,28 @@ export default function Login() {
         e.preventDefault();
 
         try {
-            const data = new URLSearchParams();
-            data.append("username", username);
-            data.append("password", password);
-
-            const res = await api.post("/token", data, {
-                headers: {
-                    "Content-Type": "application/x-www-form-urlencoded",
-                },
-            });
-
+            const res = await api.post("/token", formData);
             setToken(res.data.access_token);
             nav("/");
 
         } catch (err) {
-            if (err.response?.status === 403) {
-                modal.showModal(
-                    "Konto nieaktywne",
-                    "Musisz potwierdzić adres e-mail. Sprawdź skrzynkę pocztową i kliknij link weryfikacyjny."
-                );
+            console.error(err);
+
+            let message = "Wystąpił błąd logowania.";
+
+            if (err.response) {
+                const { status } = err.response;
+
+                if (status === 401) {
+                    message = "Nieprawidłowa nazwa użytkownika lub hasło.";
+                } else if (status === 400) {
+                    message = "Niepoprawne dane logowania.";
+                }
             } else {
-                modal.showModal(
-                    "Błąd logowania",
-                    "Nieprawidłowy login lub hasło."
-                );
+                message = "Brak połączenia z serwerem.";
             }
+
+            modal.showModal("Błąd logowania", message);
         }
     }
 
@@ -50,23 +48,23 @@ export default function Login() {
 
             <form onSubmit={submit}>
                 <div style={{ marginBottom: 10 }}>
-                    <label>Login</label><br/>
+                    <label>Nazwa użytkownika</label><br />
                     <input
                         value={username}
-                        onChange={e => setUsername(e.target.value)}
+                        onChange={(e) => setUsername(e.target.value)}
                         style={{ width: "100%", padding: 8 }}
-                        autoComplete="username"
+                        required
                     />
                 </div>
 
                 <div style={{ marginBottom: 10 }}>
-                    <label>Hasło</label><br/>
+                    <label>Hasło</label><br />
                     <input
                         type="password"
                         value={password}
-                        onChange={e => setPassword(e.target.value)}
+                        onChange={(e) => setPassword(e.target.value)}
                         style={{ width: "100%", padding: 8 }}
-                        autoComplete="current-password"
+                        required
                     />
                 </div>
 
